@@ -3,7 +3,6 @@ package function
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -29,22 +28,16 @@ type FunctionRequest struct {
 	File    []byte   `json:"file"` // the binary contents of the uploaded zip file (base64 encoded in JSON)
 }
 
-type DockerErrorResponse struct {
-	ErrorDetail struct {
-		Message string `json:"message"`
-	} `json:"errorDetail"`
-}
-
 func getEnvironmentVariables() (string, string) {
 	username, err := os.LookupEnv("REGISTRY_USERNAME")
 	if !err {
 		username = ""
 	}
-	identityToken, err := os.LookupEnv("REGISTRY_IDENTITY_TOKEN")
+	password, err := os.LookupEnv("REGISTRY_IDENTITY_TOKEN")
 	if !err {
-		identityToken = ""
+		password = ""
 	}
-	return username, identityToken
+	return username, password
 }
 
 func (f *FunctionRequest) Validate() error {
@@ -79,11 +72,11 @@ func (f *FunctionRequest) BuildDockerImage() (string, error) {
 	}
 
 	// login to the registry
-	username, identityToken := getEnvironmentVariables()
+	username, password := getEnvironmentVariables()
 
 	authConfig := registry.AuthConfig{
-		Username:      username,
-		IdentityToken: identityToken,
+		Username: username,
+		Password: password,
 	}
 
 	token, err := registry.EncodeAuthConfig(authConfig)
@@ -98,7 +91,6 @@ func (f *FunctionRequest) BuildDockerImage() (string, error) {
 
 	log.Printf("Building Docker image %s", f.GetImageName())
 
-	// Build the Docker image.
 	buildCtx := bytes.NewReader(tar)
 	buildOptions := types.ImageBuildOptions{
 		Tags:        []string{f.GetImageName()},
@@ -127,27 +119,25 @@ func (f *FunctionRequest) BuildDockerImage() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to push Docker image: %w", err)
 	}
-	// catch errordetails from the response
-	responseData := make([]byte, 1024)
-	size, err := pushResponse.Read(responseData)
-	if err != nil {
-		return "", fmt.Errorf("failed to read push response: %w", err)
-	}
-	// marshal the response data to a
-	var dockerResponse DockerErrorResponse
-	err = json.Unmarshal(responseData[:size], &dockerResponse)
-	if err != nil {
-		return "", fmt.Errorf("failed to unmarshal push response: %w", err)
-	}
-	if strings.Contains(dockerResponse.ErrorDetail.Message, "denied") {
-		return "", fmt.Errorf("failed to push Docker image: %v", "unauthorized: access to the resource is denied")
-	}
 	defer pushResponse.Close()
 
 	// Read the push response to completion.
 	_, err = io.Copy(os.Stdout, pushResponse)
 	if err != nil {
 		return "", fmt.Errorf("failed to read push response: %w", err)
+	}
+
+	// Read the push response to a string.
+	var response bytes.Buffer
+	_, err = io.Copy(&response, pushResponse)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to read push response: %w", err)
+	}
+
+	// Check if the push was successful.
+	if strings.Contains(response.String(), "error") {
+		return "", fmt.Errorf("failed to push Docker image: %w", err)
 	}
 
 	return strings.Join(buildOptions.Tags, ":"), nil
