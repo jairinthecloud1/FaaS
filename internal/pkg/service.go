@@ -86,24 +86,34 @@ func (s *Service) toUnstructured() *unstructured.Unstructured {
 	}
 }
 
-// GetFunctionURL retrieves the URL for a Knative Service (function) by reading its status.
-func (s *Service) GetFunctionURL(client dynamic.Interface) (string, error) {
-	namespace := s.Namespace
-	name := s.FunctionName
+// GetFunctionURL retrieves the URL for a Knative Service (function) by checking its status.
+// It first attempts to extract "status.url". If not found or empty, it falls back to "status.address.url".
+func GetFunctionURL(client dynamic.Interface, namespace, name string) (string, error) {
 	ksvc, err := client.Resource(knativeServiceGVR).Namespace(namespace).Get(context.Background(), name, metav1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to get knative service %s/%s: %w", namespace, name, err)
 	}
 
-	// The URL is typically set in the status.url field once the service is ready.
+	// Attempt to get the top-level status.url
 	url, found, err := unstructured.NestedString(ksvc.Object, "status", "url")
 	if err != nil {
 		return "", fmt.Errorf("error extracting URL from knative service status: %w", err)
 	}
 	if !found || url == "" {
-		return "", fmt.Errorf("URL not found in knative service status for %s/%s", namespace, name)
+		// Fallback to status.address.url if status.url is not present.
+		url, found, err = unstructured.NestedString(ksvc.Object, "status", "address", "url")
+		if err != nil {
+			return "", fmt.Errorf("error extracting URL from knative service status.address: %w", err)
+		}
+		if !found || url == "" {
+			return "", fmt.Errorf("URL not found in knative service status for %s/%s", namespace, name)
+		}
 	}
 	return url, nil
+}
+
+func (s *Service) GetUrl(client dynamic.Interface) (string, error) {
+	return GetFunctionURL(client, s.Namespace, s.FunctionName)
 }
 
 // GetKnativeService retrieves a Knative Service (ksvc) by namespace and name using the provided dynamic client.
@@ -115,10 +125,27 @@ func GetKnativeService(client dynamic.Interface, namespace, name string) (*unstr
 	return ksvc, nil
 }
 
-func ListKnativeServices(client dynamic.Interface, namespace string) (*unstructured.UnstructuredList, error) {
+func ListKnativeServices(client dynamic.Interface, namespace string) (*[]Service, error) {
 	ksvcs, err := client.Resource(knativeServiceGVR).Namespace(namespace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list knative services in namespace %s: %w", namespace, err)
 	}
-	return ksvcs, nil
+
+	var services []Service
+	for _, unstructuredKsvc := range ksvcs.Items {
+		services = append(services, *FromUnstructured(&unstructuredKsvc))
+	}
+	return &services, nil
+}
+
+func FromUnstructured(unstructuredKsvc *unstructured.Unstructured) *Service {
+	spec := unstructuredKsvc.Object["spec"].(map[string]interface{})
+	template := spec["template"].(map[string]interface{})
+	containers := template["spec"].(map[string]interface{})["containers"].([]interface{})
+	image := containers[0].(map[string]interface{})["image"].(string)
+	return &Service{
+		Image:        image,
+		Namespace:    unstructuredKsvc.GetNamespace(),
+		FunctionName: unstructuredKsvc.GetName(),
+	}
 }

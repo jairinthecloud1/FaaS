@@ -79,7 +79,7 @@ func TestGetKnativeService(t *testing.T) {
 	}
 }
 
-func TestGetKnativeServiceWithRealClient(t *testing.T) {
+func TestListKnativeServiceWithRealClient(t *testing.T) {
 	var kubeconfig *string
 	if home := homedir.HomeDir(); home != "" {
 		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -107,41 +107,28 @@ func TestGetKnativeServiceWithRealClient(t *testing.T) {
 	}
 
 	// The result may be empty if there are no Knative Services in the namespace.
-	if len(ret.Items) == 0 {
+	if len(*ret) == 0 {
 		t.Logf("no Knative Services found in namespace 'default'")
-	} else {
-		// Print the names of the Knative Services found in the namespace.
-		for _, svc := range ret.Items {
-			t.Logf("Knative Service: %s", svc.GetName())
-		}
 	}
 
-	// You can further inspect the content of the unstructured objects as needed.
-	// For example, verify that the spec contains the expected container image.
-	for _, svc := range ret.Items {
-		spec, found, err := unstructured.NestedMap(svc.Object, "spec", "template", "spec")
-		if err != nil || !found {
-			t.Errorf("failed to retrieve spec from returned object: %v", err)
-		} else {
-			containers, found, err := unstructured.NestedSlice(spec, "containers")
-			if err != nil || !found || len(containers) == 0 {
-				t.Errorf("failed to retrieve containers from spec: %v", err)
-			} else {
-				container, ok := containers[0].(map[string]interface{})
-				if !ok {
-					t.Errorf("container is not a map[string]interface{}")
-				} else if image, found, _ := unstructured.NestedString(container, "image"); !found {
-					t.Errorf("container does not have an image")
-				} else {
-					t.Logf("Knative Service %s uses image %s", svc.GetName(), image)
-				}
-			}
+	// Verify that the retrieved services have the expected namespace.
+	for _, svc := range *ret {
+		if svc.Namespace != "default" {
+			t.Errorf("expected namespace 'default', got %s", svc.Namespace)
 		}
-	}
+		if svc.Image == "" {
+			t.Errorf("expected image, got %s", svc.Image)
+		}
+		if svc.FunctionName == "" {
+			t.Errorf("expected function name, got %s", svc.FunctionName)
+		}
+		url, err := svc.GetUrl(clientset)
+		if err != nil {
+			t.Fatalf("failed to get service URL: %v", err)
+		}
 
-	// list all knative services in the namespace
-	for _, svc := range ret.Items {
-		t.Logf("Knative Service: %s", svc.GetName())
+		t.Logf("Function Name: %s Service URL: %s", svc.FunctionName, url)
+
 	}
 
 }
@@ -256,5 +243,54 @@ func TestCreateKnativeServiceWithRealClient(t *testing.T) {
 				t.Errorf("expected image 'jairjosafath/hellov4:latest', got %s", image)
 			}
 		}
+	}
+
+	// print the URL of the created service
+	url, err := fn.GetUrl(clientset)
+	if err != nil {
+		t.Fatalf("failed to get service URL: %v", err)
+	}
+	t.Logf("Service URL: %s", url)
+
+}
+
+func TestGetFunctionURL(t *testing.T) {
+	// Create an unstructured Knative Service object to simulate a real resource.
+	ksvc := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "serving.knative.dev/v1",
+			"kind":       "Service",
+			"metadata": map[string]interface{}{
+				"name":      "test-service",
+				"namespace": "default",
+			},
+			"status": map[string]interface{}{
+				"url": "http://test-service.default.example.com",
+			},
+		},
+	}
+
+	// Create a simple runtime scheme. The dynamic fake client doesn't require you to add the object
+	// to the scheme if you are using unstructured types.
+	scheme := runtime.NewScheme()
+
+	// Initialize a fake dynamic client with the test Knative Service.
+	client := dynamicfake.NewSimpleDynamicClient(scheme, ksvc)
+
+	// Attempt to retrieve the Knative Service using our function.
+	service := function.Service{
+		Image:        "gcr.io/test/image:latest",
+		Namespace:    "default",
+		FunctionName: "test-service",
+	}
+	ret, err := service.GetUrl(client)
+
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	// Verify that the retrieved service has the expected URL.
+	if ret != "http://test-service.default.example.com" {
+		t.Errorf("expected URL 'http://test-service.default.example.com', got %s", ret)
 	}
 }
