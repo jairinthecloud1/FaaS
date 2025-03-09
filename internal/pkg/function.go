@@ -7,13 +7,14 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 )
 
 type EnvVar struct {
@@ -145,50 +146,37 @@ func (f *FunctionRequest) BuildDockerImage() (string, error) {
 
 func (f *FunctionRequest) Serve() (string, error) {
 
+	// creates the in-cluster config
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+	// creates the clientset
+	clientset, err := dynamic.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
 	image, err := f.BuildDockerImage()
 	if err != nil {
 		return "", fmt.Errorf("failed to build Docker image: %w", err)
 	}
 
-	// Build the YAML string dynamically using fmt.Sprintf.
-	serviceYaml := fmt.Sprintf("apiVersion: serving.knative.dev/v1\n"+
-		"kind: Service\n"+
-		"metadata:\n"+
-		"  name: %s\n"+
-		"  namespace: %s\n"+
-		"spec:\n"+
-		"  template:\n"+
-		"    spec:\n"+
-		"      containers:\n"+
-		"      - image: %s\n", f.Name, "default", image)
+	log.Printf("Deploying service %s", f.Name)
 
-	// Print the resulting YAML.
-	fmt.Println(serviceYaml)
-
-	// store the service yaml in a file
-	file, err := os.Create("service.yaml")
-	if err != nil {
-		return "", fmt.Errorf("failed to create service.yaml: %w", err)
-	}
-	defer file.Close()
-
-	_, err = file.WriteString(serviceYaml)
-	if err != nil {
-		return "", fmt.Errorf("failed to write to service.yaml: %w", err)
+	// deploy the service
+	svc := Service{
+		FunctionName: f.Name,
+		Namespace:    "default",
+		Image:        image,
 	}
 
-	// kubectl apply -f service.yaml
-	app := "kubectl"
-	action := "apply"
-	arg0 := "-f"
-	arg1 := "service.yaml"
-	cmd := exec.Command(app, action, arg0, arg1)
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-
-	err = cmd.Run()
+	deployed, err := svc.Deploy(clientset)
 	if err != nil {
-		return "", fmt.Errorf("failed to apply service.yaml: %w", err)
+		return "", fmt.Errorf("failed to deploy service: %w", err)
+	}
+
+	if deployed == nil {
+		return "", fmt.Errorf("failed to deploy service")
 	}
 
 	return fmt.Sprintf("Service %v successfully deployed", f.Name), nil

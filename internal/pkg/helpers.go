@@ -11,7 +11,6 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"time"
 
 	echo "github.com/labstack/echo/v4"
@@ -151,8 +150,6 @@ func ZipToTar(stream io.Reader) ([]byte, error) {
 // 	return false, nil
 // }
 
-// InjectDockerfile injects the local Dockerfile (from disk) into the provided tar archive.
-// It returns a new tar archive as a []byte that contains all original entries plus the Dockerfile.
 func InjectDockerfile(tarData []byte) ([]byte, error) {
 	// Create a buffer for the new tar archive.
 	var buf bytes.Buffer
@@ -187,45 +184,38 @@ func InjectDockerfile(tarData []byte) ([]byte, error) {
 		}
 	}
 
-	// Inject the Dockerfile into the archive.
-	dockerFilePath := "node/22.14.0/Dockerfile"
+	// Hardcoded Dockerfile content as a raw string literal.
+	const dockerfileContent = `
+# https://hub.docker.com/_/node
+FROM node:22.14.0-slim
 
-	// Read Dockerfile's file info and content.
-	fileInfo, err := os.Stat(dockerFilePath)
-	if err != nil {
-		tw.Close()
-		return nil, fmt.Errorf("error stating Dockerfile: %w", err)
-	}
-	dockerFile, err := os.Open(dockerFilePath)
-	if err != nil {
-		tw.Close()
-		return nil, fmt.Errorf("error opening Dockerfile: %w", err)
-	}
-	defer dockerFile.Close()
+# Create and change to the app directory.
+WORKDIR /usr/src/app
 
-	dockerData, err := io.ReadAll(dockerFile)
-	if err != nil {
-		tw.Close()
-		return nil, fmt.Errorf("error reading Dockerfile: %w", err)
-	}
+COPY package*.json ./
+
+RUN npm install --only=production
+# Copy local code to the container image.
+COPY . /usr/src/app
+
+# Run the web service on container startup.
+CMD [ "npm", "start" ]
+`
 
 	// Create a tar header for the Dockerfile.
-	header, err := tar.FileInfoHeader(fileInfo, "")
-	if err != nil {
-		tw.Close()
-		return nil, fmt.Errorf("error creating header for Dockerfile: %w", err)
+	header := &tar.Header{
+		Name:    "Dockerfile", // Inject it at the root of the archive.
+		Mode:    0644,
+		Size:    int64(len(dockerfileContent)),
+		ModTime: time.Now(),
 	}
-	// Set the header name to "Dockerfile" so it appears at the root.
-	header.Name = "Dockerfile"
-	// Optionally update the modification time (or keep fileInfo.ModTime())
-	header.ModTime = time.Now()
 
-	// Write the Dockerfile header and content.
+	// Write the Dockerfile header and its content.
 	if err := tw.WriteHeader(header); err != nil {
 		tw.Close()
 		return nil, fmt.Errorf("error writing Dockerfile header: %w", err)
 	}
-	if _, err := tw.Write(dockerData); err != nil {
+	if _, err := tw.Write([]byte(dockerfileContent)); err != nil {
 		tw.Close()
 		return nil, fmt.Errorf("error writing Dockerfile data: %w", err)
 	}

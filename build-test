@@ -1,0 +1,19 @@
+#!/bin/bash
+set -e
+
+# Build the Docker image locally.
+echo "Building the Docker image 'echo-api:latest'..."
+docker build -t jairjosafath/echo-api:latest .
+
+# Push the Docker image to Docker Hub (make sure you're logged in first).
+docker push jairjosafath/echo-api:latest
+
+# Apply the Kubernetes manifests (make sure the YAML file name/path matches your repo).
+echo "Deploying the application to Minikube..."
+kubectl apply -f deployment.yaml
+
+# Optionally, wait for the deployment rollout to complete.
+echo "Waiting for the deployment to complete..."
+kubectl rollout status deployment/echo-api
+
+echo "Deployment complete. Your echo API is running on Minikube."

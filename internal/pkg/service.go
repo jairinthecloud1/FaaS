@@ -53,8 +53,9 @@ type Container struct {
 	Image string `yaml:"image"`
 }
 
-func (s *Service) Deploy(client dynamic.Interface, namespace string) (*unstructured.Unstructured, error) {
+func (s *Service) Deploy(client dynamic.Interface) (*unstructured.Unstructured, error) {
 	unstructuredKsvc := s.toUnstructured()
+	namespace := s.Namespace
 	created, err := client.Resource(knativeServiceGVR).Namespace(namespace).Create(context.Background(), unstructuredKsvc, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create knative service in namespace %s: %w", namespace, err)

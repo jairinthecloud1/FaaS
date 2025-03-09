@@ -147,7 +147,7 @@ func TestCreateKnativeService(t *testing.T) {
 		Namespace:    "default",
 		FunctionName: "test-service",
 	}
-	ret, err := service.Deploy(client, "default")
+	ret, err := service.Deploy(client)
 
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
@@ -202,18 +202,12 @@ func TestCreateKnativeServiceWithRealClient(t *testing.T) {
 		panic(err.Error())
 	}
 
-	// Attempt to create the Knative Service using the real client.
-
-	if err != nil {
-		t.Fatalf("expected no error, got: %v", err)
-	}
-
 	fn := function.Service{
 		Image:        "jairjosafath/hellov4:latest",
 		Namespace:    "default",
 		FunctionName: "test",
 	}
-	ret, err := fn.Deploy(clientset, "default")
+	ret, err := fn.Deploy(clientset)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
