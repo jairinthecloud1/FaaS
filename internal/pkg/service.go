@@ -1,12 +1,21 @@
 package function
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"net/http"
-	"net/url"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 )
+
+// knativeServiceGVR defines the GroupVersionResource for Knative Services.
+var knativeServiceGVR = schema.GroupVersionResource{
+	Group:    "serving.knative.dev",
+	Version:  "v1",
+	Resource: "services", // note: the plural form of "Service"
+}
 
 type Service struct {
 	Image        string
@@ -44,70 +53,72 @@ type Container struct {
 	Image string `yaml:"image"`
 }
 
-func (s *Service) Deploy() error {
-	kubeHost := "https://kubernetes.default.svc"
-	// path to token file
-	tokenPath := "~/.minikube/profiles/minikube/client.key"
-	// path to certificate file
-	certPath := "~/.minikube/profiles/minikube/client.crt"
-
-	endpoint := fmt.Sprintf("%s/apis/%s/namespaces/%s/services", kubeHost, apiVersion, s.Namespace)
-
-	url, err := url.Parse(endpoint)
+func (s *Service) Deploy(client dynamic.Interface, namespace string) (*unstructured.Unstructured, error) {
+	unstructuredKsvc := s.toUnstructured()
+	created, err := client.Resource(knativeServiceGVR).Namespace(namespace).Create(context.Background(), unstructuredKsvc, metav1.CreateOptions{})
 	if err != nil {
-		return fmt.Errorf("failed to parse URL: %w", err)
+		return nil, fmt.Errorf("failed to create knative service in namespace %s: %w", namespace, err)
 	}
+	return created, nil
+}
 
-	kservice := KService{
-		ApiVersion: apiVersion,
-		Kind:       "Service",
-		Metadata: Metadata{
-			Name:      s.FunctionName,
-			Namespace: s.Namespace,
-		},
-		Spec: KServiceSpec{
-			Template: Template{
-				Spec: Spec{
-					Containers: []Container{
-						{
-							Image: s.Image,
+func (s *Service) toUnstructured() *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": apiVersion,
+			"kind":       "Service",
+			"metadata": map[string]interface{}{
+				"name":      s.FunctionName,
+				"namespace": s.Namespace,
+			},
+			"spec": map[string]interface{}{
+				"template": map[string]interface{}{
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"image": s.Image,
+							},
 						},
 					},
 				},
 			},
 		},
 	}
-
-	httpClient := &http.Client{}
-
-	// prepare the body of the request
-	body := new(bytes.Buffer)
-	err = json.NewEncoder(body).Encode(kservice)
-	if err != nil {
-		return fmt.Errorf("failed to encode JSON: %w", err)
-	}
-
-	req, err := http.NewRequest(http.MethodPost, url.String(), body)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// set the headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenPath))
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", certPath))
-
-	// send the request
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to send request: %w", err)
-	}
-
-	// check the response
-	if resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-	}
-
-	return nil
 }
 
+// GetFunctionURL retrieves the URL for a Knative Service (function) by reading its status.
+func (s *Service) GetFunctionURL(client dynamic.Interface) (string, error) {
+	namespace := s.Namespace
+	name := s.FunctionName
+	ksvc, err := client.Resource(knativeServiceGVR).Namespace(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		return "", fmt.Errorf("failed to get knative service %s/%s: %w", namespace, name, err)
+	}
+
+	// The URL is typically set in the status.url field once the service is ready.
+	url, found, err := unstructured.NestedString(ksvc.Object, "status", "url")
+	if err != nil {
+		return "", fmt.Errorf("error extracting URL from knative service status: %w", err)
+	}
+	if !found || url == "" {
+		return "", fmt.Errorf("URL not found in knative service status for %s/%s", namespace, name)
+	}
+	return url, nil
+}
+
+// GetKnativeService retrieves a Knative Service (ksvc) by namespace and name using the provided dynamic client.
+func GetKnativeService(client dynamic.Interface, namespace, name string) (*unstructured.Unstructured, error) {
+	ksvc, err := client.Resource(knativeServiceGVR).Namespace(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get knative service %s/%s: %w", namespace, name, err)
+	}
+	return ksvc, nil
+}
+
+func ListKnativeServices(client dynamic.Interface, namespace string) (*unstructured.UnstructuredList, error) {
+	ksvcs, err := client.Resource(knativeServiceGVR).Namespace(namespace).List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list knative services in namespace %s: %w", namespace, err)
+	}
+	return ksvcs, nil
+}

@@ -1,10 +1,11 @@
-package knative
+package function_test
 
 import (
 	"flag"
 	"path/filepath"
 	"testing"
 
+	function "github.com/jairinthecloud1/FaaS/internal/pkg"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
@@ -45,7 +46,7 @@ func TestGetKnativeService(t *testing.T) {
 	client := dynamicfake.NewSimpleDynamicClient(scheme, ksvc)
 
 	// Attempt to retrieve the Knative Service using our function.
-	ret, err := GetKnativeService(client, "default", "test-service")
+	ret, err := function.GetKnativeService(client, "default", "test-service")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -100,7 +101,7 @@ func TestGetKnativeServiceWithRealClient(t *testing.T) {
 	}
 
 	// Retrieve the Knative Service using the real client.
-	ret, err := ListKnativeServices(clientset, "default")
+	ret, err := function.ListKnativeServices(clientset, "default")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -138,4 +139,122 @@ func TestGetKnativeServiceWithRealClient(t *testing.T) {
 		}
 	}
 
+	// list all knative services in the namespace
+	for _, svc := range ret.Items {
+		t.Logf("Knative Service: %s", svc.GetName())
+	}
+
+}
+
+func TestCreateKnativeService(t *testing.T) {
+	// Create a simple runtime scheme. The dynamic fake client doesn't require you to add the object
+	// to the scheme if you are using unstructured types.
+	scheme := runtime.NewScheme()
+
+	// Initialize a fake dynamic client.
+	client := dynamicfake.NewSimpleDynamicClient(scheme)
+
+	// Attempt to create the Knative Service using our function.
+	service := function.Service{
+		Image:        "gcr.io/test/image:latest",
+		Namespace:    "default",
+		FunctionName: "test-service",
+	}
+	ret, err := service.Deploy(client, "default")
+
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	// Verify that the created service has the expected name and namespace.
+	if ret.GetName() != "test-service" {
+		t.Errorf("expected service name 'test-service', got %s", ret.GetName())
+	}
+	if ret.GetNamespace() != "default" {
+		t.Errorf("expected namespace 'default', got %s", ret.GetNamespace())
+	}
+
+	// You can further inspect the content of the unstructured object as needed.
+	// For example, verify that the spec contains the expected container image.
+	spec, found, err := unstructured.NestedMap(ret.Object, "spec", "template", "spec")
+	if err != nil || !found {
+		t.Errorf("failed to retrieve spec from returned object: %v", err)
+	} else {
+		containers, found, err := unstructured.NestedSlice(spec, "containers")
+		if err != nil || !found || len(containers) == 0 {
+			t.Errorf("failed to retrieve containers from spec: %v", err)
+		} else {
+			container, ok := containers[0].(map[string]interface{})
+			if !ok {
+				t.Errorf("container is not a map[string]interface{}")
+			} else if image, found, _ := unstructured.NestedString(container, "image"); !found || image != "gcr.io/test/image:latest" {
+				t.Errorf("expected image 'gcr.io/test/image:latest', got %s", image)
+			}
+		}
+	}
+}
+
+func TestCreateKnativeServiceWithRealClient(t *testing.T) {
+	var kubeconfig *string
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+	flag.Parse()
+
+	// use the current context in kubeconfig
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// create the clientset
+	clientset, err := dynamic.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// Attempt to create the Knative Service using the real client.
+
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	fn := function.Service{
+		Image:        "jairjosafath/hellov4:latest",
+		Namespace:    "default",
+		FunctionName: "test",
+	}
+	ret, err := fn.Deploy(clientset, "default")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	// Verify that the created service has the expected name and namespace.
+	if ret.GetName() != "test" {
+		t.Errorf("expected service name '', got %s", ret.GetName())
+	}
+	if ret.GetNamespace() != "default" {
+		t.Errorf("expected namespace 'default', got %s", ret.GetNamespace())
+	}
+
+	// You can further inspect the content of the unstructured object as needed.
+	// For example, verify that the spec contains the expected container image.
+	spec, found, err := unstructured.NestedMap(ret.Object, "spec", "template", "spec")
+	if err != nil || !found {
+		t.Errorf("failed to retrieve spec from returned object: %v", err)
+	} else {
+		containers, found, err := unstructured.NestedSlice(spec, "containers")
+		if err != nil || !found || len(containers) == 0 {
+			t.Errorf("failed to retrieve containers from spec: %v", err)
+		} else {
+			container, ok := containers[0].(map[string]interface{})
+			if !ok {
+				t.Errorf("container is not a map[string]interface{}")
+			} else if image, found, _ := unstructured.NestedString(container, "image"); !found || image != "jairjosafath/hellov4:latest" {
+				t.Errorf("expected image 'jairjosafath/hellov4:latest', got %s", image)
+			}
+		}
+	}
 }
