@@ -1,0 +1,89 @@
+---
+#simple deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: faas-api
+  labels:
+    app: faas-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: faas-api
+  template:
+    metadata:
+      labels:
+        app: faas-api
+    spec:
+      containers:
+        - name: faas-api
+          image: nginx:1.14.2
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+          volumeMounts:
+            - name: faas-html
+              mountPath: /usr/share/nginx/html
+      volumes:
+        - name: faas-html
+          configMap:
+            name: faas-html
+---
+#simple configmap with custom html
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: faas-html
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Simple FaaS API</title>
+    </head>
+    <body>
+      <h1>Welcome to the Simple FaaS API</h1>
+      <p>This is a simple FaaS API.</p>
+    </body>
+    </html>
+---
+#simple service
+apiVersion: v1
+kind: Service
+metadata:
+  name: faas-api
+  labels:
+    app: faas-api
+spec:
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: faas-api
+  type: LoadBalancer
+---
+#simple ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: faas-api
+spec:
+  ingressClassName: nginx # Specify your ingress controller's class name here.
+  rules:
+    - host: simple # Replace with your Minikube IP or correct hostname.
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: faas-api
+                port:
+                  number: 80
