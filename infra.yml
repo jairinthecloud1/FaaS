@@ -3,21 +3,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: faas-api
+  name: faas-frontend
   labels:
-    app: faas-api
+    app: faas-frontend
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: faas-api
+      app: faas-frontend
   template:
     metadata:
       labels:
-        app: faas-api
+        app: faas-frontend
     spec:
       containers:
-        - name: faas-api
+        - name: faas-frontend
           image: nginx:1.14.2
           ports:
             - containerPort: 80
@@ -36,6 +36,51 @@ spec:
           configMap:
             name: faas-html
 ---
+# simple deployment for a go app
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: faas-api
+  labels:
+    app: faas-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: faas-api
+  template:
+    metadata:
+      labels:
+        app: faas-api
+    spec:
+      containers:
+        - name: faas-api
+          image: jairjosafath/faas-api:latest
+          ports:
+            - containerPort: 8090
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+---
+#simple service for a go app
+apiVersion: v1
+kind: Service
+metadata:
+  name: faas-api
+  labels:
+    app: faas-api
+spec:
+  ports:
+    - port: 8090
+      targetPort: 8090
+  selector:
+    app: faas-api
+  type: ClusterIP
+---
 #simple configmap with custom html
 apiVersion: v1
 kind: ConfigMap
@@ -46,11 +91,11 @@ data:
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Simple FaaS API</title>
+      <title>Simple FaaS FE</title>
     </head>
     <body>
-      <h1>Welcome to the Simple FaaS API</h1>
-      <p>This is a simple FaaS API.</p>
+      <h1>Welcome to the Simple FaaS FE</h1>
+      <p>This is a simple FaaS FE.</p>
     </body>
     </html>
 ---
@@ -58,32 +103,39 @@ data:
 apiVersion: v1
 kind: Service
 metadata:
-  name: faas-api
+  name: faas-frontend
   labels:
-    app: faas-api
+    app: faas-frontend
 spec:
   ports:
     - port: 80
       targetPort: 80
   selector:
-    app: faas-api
-  type: LoadBalancer
+    app: faas-frontend
+  type: ClusterIP
 ---
 #simple ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: faas-api
+  name: faas-ingress
 spec:
   ingressClassName: nginx # Specify your ingress controller's class name here.
   rules:
-    - host: simple # Replace with your Minikube IP or correct hostname.
+    - host: www.faas.host # Replace with your Minikube IP or correct hostname.
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: faas-api
+                name: faas-frontend
                 port:
                   number: 80
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: faas-api
+                port:
+                  number: 8090
