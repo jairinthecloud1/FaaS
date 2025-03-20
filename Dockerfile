@@ -29,7 +29,7 @@ WORKDIR /root/
 COPY --from=builder /app/echo-api .
 
 # Expose the port on which your API listens (adjust if needed).
-EXPOSE 8080
+EXPOSE 8090
 
 # Start the application.
 CMD ["./echo-api"]
