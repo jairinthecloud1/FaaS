@@ -11,10 +11,6 @@ func main() {
 	e.Use(middleware.Recover())
 	api := e.Group("/api")
 
-	// Define the POST endpoint.
-	// e.POST("/api/functions", function.PostFunctionHandler)
-
-	// health check endpoint
 	api.GET("/health", func(c echo.Context) error {
 		return c.String(200, "OK")
 	})

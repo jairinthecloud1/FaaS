@@ -45,7 +45,7 @@ expose:
 # the IP address of k8s node
 #
 # If Harbor is deployed behind the proxy, set it as the URL of proxy
-externalURL: http://registry.faas.host
+externalURL: http://harbor
 
 # The initial password of Harbor admin. Change it from portal after launching Harbor
 # or give an existing secret for it

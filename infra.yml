@@ -36,13 +36,37 @@ spec:
           configMap:
             name: faas-html
 ---
-# simple deployment for a go app
+# -----------------------------------------------------------------------------
+# ConfigMap with environment variables for faas-api
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: faas-api-envy
+data:
+  # Adjust this to your registry endpoint as needed
+  DOCKER_REGISTRY: "harbor.default.svc.cluster.local"
+---
+# -----------------------------------------------------------------------------
+# Secret with Docker credentials for faas-api
+# (Both values are Base64-encoded "admin")
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Secret
+metadata:
+  name: faas-api-secret
+type: Opaque
+data:
+  DOCKER_USERNAME: YWRtaW4=
+  DOCKER_PASSWORD: YWRtaW4=
+---
+# -----------------------------------------------------------------------------
+# Deployment with Docker-in-Docker (DinD) sidecar + faas-api container
+# -----------------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: faas-api
-  labels:
-    app: faas-api
 spec:
   replicas: 1
   selector:
@@ -53,11 +77,21 @@ spec:
       labels:
         app: faas-api
     spec:
+      # The Pod will contain two containers: "dind" and "faas-api"
       containers:
-        - name: faas-api
-          image: jairjosafath/faas-api:latest
-          ports:
-            - containerPort: 8090
+        - name: dind
+          image: docker:20.10-dind
+          # Privileged is required for DinD to start its own Docker daemon
+          securityContext:
+            privileged: true
+          # Disables TLS in Docker-in-Docker; it will listen on tcp://0.0.0.0:2375
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          # Persist Docker's working data if needed
+          volumeMounts:
+            - name: dind-data
+              mountPath: /var/lib/docker
           resources:
             requests:
               memory: "64Mi"
@@ -65,6 +99,44 @@ spec:
             limits:
               memory: "128Mi"
               cpu: "500m"
+          args:
+            - --insecure-registry=harbor.default.svc.cluster.local
+            - --insecure-registry=registry.faas.test
+            - --insecure-registry=harbor
+
+        - name: faas-api
+          image: jairjosafath/faas-api:latest
+          ports:
+            - containerPort: 8090
+          envFrom:
+            - configMapRef:
+                name: faas-api-env
+          env:
+            # Tell the docker client library to speak to the sidecar's daemon
+            - name: DOCKER_HOST
+              value: tcp://localhost:2375
+            - name: DOCKER_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: faas-api-secret
+                  key: DOCKER_USERNAME
+            - name: DOCKER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: faas-api-secret
+                  key: DOCKER_PASSWORD
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "250m"
+            limits:
+              memory: "128Mi"
+              cpu: "500m"
+
+      # Volume for DinD to store its /var/lib/docker directory
+      volumes:
+        - name: dind-data
+          emptyDir: {}
 ---
 #simple service for a go app
 apiVersion: v1
@@ -122,7 +194,7 @@ metadata:
 spec:
   ingressClassName: nginx # Specify your ingress controller's class name here.
   rules:
-    - host: www.faas.host # Replace with your Minikube IP or correct hostname.
+    - host: www.faas.test # Replace with your Minikube IP or correct hostname.
       http:
         paths:
           - path: /
@@ -139,7 +211,7 @@ spec:
                 name: faas-api
                 port:
                   number: 8090
-    - host: registry.faas.host # Replace with your Minikube IP or correct hostname.
+    - host: registry.faas.test # Replace with your Minikube IP or correct hostname.
       http:
         paths:
           - path: /
@@ -149,3 +221,5 @@ spec:
                 name: harbor
                 port:
                   number: 80
+---
+
