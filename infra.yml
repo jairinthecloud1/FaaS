@@ -1,5 +1,32 @@
 ---
-#simple deployment
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: faas-api-role
+rules:
+  - apiGroups: ["serving.knative.dev"]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: faas-api-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: faas-api-role
+subjects:
+  - kind: ServiceAccount
+    name: faas-api
+    namespace: default
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,21 +63,13 @@ spec:
           configMap:
             name: faas-html
 ---
-# -----------------------------------------------------------------------------
-# ConfigMap with environment variables for faas-api
-# -----------------------------------------------------------------------------
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: faas-api-env
 data:
-  # Adjust this to your registry endpoint as needed
   DOCKER_REGISTRY: "harbor.default.svc.cluster.local"
 ---
-# -----------------------------------------------------------------------------
-# Secret with Docker credentials for faas-api
-# (Both values are Base64-encoded "admin")
-# -----------------------------------------------------------------------------
 apiVersion: v1
 kind: Secret
 metadata:
@@ -60,9 +79,6 @@ data:
   DOCKER_USERNAME: YWRtaW4=
   DOCKER_PASSWORD: YWRtaW4=
 ---
-# -----------------------------------------------------------------------------
-# Deployment with Docker-in-Docker (DinD) sidecar + faas-api container
-# -----------------------------------------------------------------------------
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -77,19 +93,15 @@ spec:
       labels:
         app: faas-api
     spec:
-      # The Pod will contain two containers: "dind" and "faas-api"
       serviceAccountName: faas-api
       containers:
         - name: dind
           image: docker:20.10-dind
-          # Privileged is required for DinD to start its own Docker daemon
           securityContext:
             privileged: true
-          # Disables TLS in Docker-in-Docker; it will listen on tcp://0.0.0.0:2375
           env:
             - name: DOCKER_TLS_CERTDIR
               value: ""
-          # Persist Docker's working data if needed
           volumeMounts:
             - name: dind-data
               mountPath: /var/lib/docker
@@ -97,6 +109,13 @@ spec:
             - --insecure-registry=harbor.default.svc.cluster.local
             - --insecure-registry=registry.faas.test
             - --insecure-registry=harbor
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
 
         - name: faas-api
           image: jairjosafath/faas-api:latest
@@ -106,7 +125,6 @@ spec:
             - configMapRef:
                 name: faas-api-env
           env:
-            # Tell the docker client library to speak to the sidecar's daemon
             - name: DOCKER_HOST
               value: tcp://localhost:2375
             - name: DOCKER_USERNAME
@@ -126,13 +144,10 @@ spec:
             limits:
               memory: "128Mi"
               cpu: "500m"
-
-      # Volume for DinD to store its /var/lib/docker directory
       volumes:
         - name: dind-data
           emptyDir: {}
 ---
-#simple service for a go app
 apiVersion: v1
 kind: Service
 metadata:
@@ -147,7 +162,6 @@ spec:
     app: faas-api
   type: ClusterIP
 ---
-#simple configmap with custom html
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -165,7 +179,6 @@ data:
     </body>
     </html>
 ---
-#simple service
 apiVersion: v1
 kind: Service
 metadata:
@@ -180,15 +193,16 @@ spec:
     app: faas-frontend
   type: ClusterIP
 ---
-#simple ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: faas-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
-  ingressClassName: nginx # Specify your ingress controller's class name here.
+  ingressClassName: nginx
   rules:
-    - host: www.faas.test # Replace with your Minikube IP or correct hostname.
+    - host: www.faas.test
       http:
         paths:
           - path: /
@@ -205,7 +219,7 @@ spec:
                 name: faas-api
                 port:
                   number: 8090
-    - host: registry.faas.test # Replace with your Minikube IP or correct hostname.
+    - host: registry.faas.test
       http:
         paths:
           - path: /
@@ -216,30 +230,4 @@ spec:
                 port:
                   number: 80
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: faas-api-role
-rules:
-  - apiGroups: ["serving.knative.dev"]
-    resources: ["services"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: [""]
-    resources: ["pods/log"]
-    verbs: ["get", "list", "watch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: faas-api-rolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: faas-api-role
-subjects:
-  - kind: ServiceAccount
-    name: faas-api
-    namespace: default
+
