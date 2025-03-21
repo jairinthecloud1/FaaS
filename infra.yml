@@ -14,6 +14,12 @@ rules:
     resources: ["pods/log"]
     verbs: ["get", "list", "watch"]
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: faas-api
+  namespace: default
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
