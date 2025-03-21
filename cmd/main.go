@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	handler "faas-api/internal"
 	"faas-api/internal/container"
 
 	"github.com/docker/docker/client"
@@ -49,13 +50,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := container.Auth(ctx, cli, "admin", "admin"); err != nil {
+	if err := container.Auth(ctx, cli); err != nil {
 		log.WithError(err).WithField("client", cli).Error("failed to login to registry")
 	}
 
 	api.GET("/health", func(c echo.Context) error {
 		return c.String(200, "OK")
 	})
+
+	api.POST("/functions", handler.PostFunctionHandler)
 
 	// Start the server on port 8090.
 	e.Logger.Fatal(e.Start(":8090"))

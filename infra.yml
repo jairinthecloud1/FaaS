@@ -42,7 +42,7 @@ spec:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: faas-api-envy
+  name: faas-api-env
 data:
   # Adjust this to your registry endpoint as needed
   DOCKER_REGISTRY: "harbor.default.svc.cluster.local"
@@ -78,6 +78,7 @@ spec:
         app: faas-api
     spec:
       # The Pod will contain two containers: "dind" and "faas-api"
+      serviceAccountName: faas-api
       containers:
         - name: dind
           image: docker:20.10-dind
@@ -92,13 +93,6 @@ spec:
           volumeMounts:
             - name: dind-data
               mountPath: /var/lib/docker
-          resources:
-            requests:
-              memory: "64Mi"
-              cpu: "250m"
-            limits:
-              memory: "128Mi"
-              cpu: "500m"
           args:
             - --insecure-registry=harbor.default.svc.cluster.local
             - --insecure-registry=registry.faas.test
@@ -222,4 +216,30 @@ spec:
                 port:
                   number: 80
 ---
-
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: faas-api-role
+rules:
+  - apiGroups: ["serving.knative.dev"]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: faas-api-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: faas-api-role
+subjects:
+  - kind: ServiceAccount
+    name: faas-api
+    namespace: default

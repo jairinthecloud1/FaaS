@@ -31,12 +31,16 @@ func TestContainerAuth(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := os.Setenv("DOCKER_REGISTRY", tc.registry)
 			require.NoError(t, err)
+			err = os.Setenv("DOCKER_USERNAME", tc.username)
+			require.NoError(t, err)
+			err = os.Setenv("DOCKER_PASSWORD", tc.password)
+			require.NoError(t, err)
 			cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 			if err != nil {
 				panic(err)
 			}
 			defer cli.Close()
-			err = Auth(t.Context(), cli, tc.username, tc.password)
+			err = Auth(t.Context(), cli)
 			if tc.expectErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.expectMsg)
