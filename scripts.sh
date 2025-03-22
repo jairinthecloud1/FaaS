@@ -13,6 +13,8 @@ helm install harbor harbor/harbor -f harbor-values.yml
 
 #add knative serving
 
+
+
 kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.17.0/serving-crds.yaml
 kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.17.0/serving-core.yaml
 kubectl apply -f https://github.com/knative/net-kourier/releases/download/knative-v1.17.0/kourier.yaml
@@ -24,3 +26,17 @@ kubectl patch configmap/config-network \
 
 kubectl --namespace kourier-system get service kourier
 
+# add kind
+cat <<EOF | kind create cluster --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+EOF
