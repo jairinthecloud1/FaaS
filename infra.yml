@@ -1,5 +1,74 @@
 ---
-#simple deployment
+#service account for kubernetes-dashboard
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+---
+#cluster role for kubernetes-dashboard
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubernetes-dashboard
+rules:
+  # allow any action on any api
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"]
+  # allow any action on any api
+  - nonResourceURLs: ["*"]
+    verbs: ["*"]
+#cluster role for kubernetes-dashboard
+---
+#cluster role binding for kubernetes-dashboard
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubernetes-dashboard
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-dashboard
+    namespace: kubernetes-dashboard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: faas-api-role
+rules:
+  - apiGroups: ["serving.knative.dev"]
+    resources: ["services"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: faas-api
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: faas-api-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: faas-api-role
+subjects:
+  - kind: ServiceAccount
+    name: faas-api
+    namespace: default
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -36,13 +105,27 @@ spec:
           configMap:
             name: faas-html
 ---
-# simple deployment for a go app
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: faas-api-env
+data:
+  DOCKER_REGISTRY: "index.docker.io"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: faas-api-secret
+type: Opaque
+# populate the secret with the docker username and password via a shell command
+data:
+  DOCKER_USERNAME: ""
+  DOCKER_PASSWORD: ""
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: faas-api
-  labels:
-    app: faas-api
 spec:
   replicas: 1
   selector:
@@ -53,11 +136,46 @@ spec:
       labels:
         app: faas-api
     spec:
+      serviceAccountName: faas-api
       containers:
+        - name: dind
+          image: docker:20.10-dind
+          securityContext:
+            privileged: true
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          volumeMounts:
+            - name: dind-data
+              mountPath: /var/lib/docker
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+
         - name: faas-api
           image: jairjosafath/faas-api:latest
           ports:
             - containerPort: 8090
+          envFrom:
+            - configMapRef:
+                name: faas-api-env
+          env:
+            - name: DOCKER_HOST
+              value: tcp://localhost:2375
+            - name: DOCKER_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: faas-api-secret
+                  key: DOCKER_USERNAME
+            - name: DOCKER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: faas-api-secret
+                  key: DOCKER_PASSWORD
           resources:
             requests:
               memory: "64Mi"
@@ -65,8 +183,10 @@ spec:
             limits:
               memory: "128Mi"
               cpu: "500m"
+      volumes:
+        - name: dind-data
+          emptyDir: {}
 ---
-#simple service for a go app
 apiVersion: v1
 kind: Service
 metadata:
@@ -81,7 +201,6 @@ spec:
     app: faas-api
   type: ClusterIP
 ---
-#simple configmap with custom html
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -99,7 +218,6 @@ data:
     </body>
     </html>
 ---
-#simple service
 apiVersion: v1
 kind: Service
 metadata:
@@ -114,15 +232,14 @@ spec:
     app: faas-frontend
   type: ClusterIP
 ---
-#simple ingress
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: faas-ingress
 spec:
-  ingressClassName: nginx # Specify your ingress controller's class name here.
+  ingressClassName: nginx
   rules:
-    - host: www.faas.host # Replace with your Minikube IP or correct hostname.
+    - host: www.faas.test
       http:
         paths:
           - path: /
@@ -139,3 +256,5 @@ spec:
                 name: faas-api
                 port:
                   number: 8090
+---
+
