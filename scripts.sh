@@ -26,8 +26,12 @@ kubectl patch configmap/config-network \
 
 kubectl --namespace kourier-system get service kourier
 
+kubectl apply -f https://github.com/knative/serving/releases/download/knative-v1.17.0/serving-default-domain.yaml
+
+ kubectl port-forward svc/kourier -n kourier-system 80:80
+
 # add kind
-cat <<EOF | kind create cluster --config=-
+cat <<EOF | kind create cluster -n faas --config=-
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
@@ -40,3 +44,10 @@ nodes:
     hostPort: 443
     protocol: TCP
 EOF
+
+helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+helm repo update
+
+helm install nginx-ingress ingress-nginx/ingress-nginx
+
+kubectl port-forward svc/nginx-ingress-ingress-nginx-controller 80:80

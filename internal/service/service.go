@@ -1,9 +1,14 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"os"
 
+	"github.com/sirupsen/logrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -17,10 +22,17 @@ var knativeServiceGVR = schema.GroupVersionResource{
 	Resource: "services", // note: the plural form of "Service"
 }
 
+type ServiceOwner struct {
+	Name     string
+	Email    string
+	UserName string
+}
+
 type Service struct {
 	Image        string
 	Namespace    string
 	FunctionName string
+	Owner        ServiceOwner
 }
 
 const apiVersion = "serving.knative.dev/v1"
@@ -149,4 +161,48 @@ func FromUnstructured(unstructuredKsvc *unstructured.Unstructured) *Service {
 		Namespace:    unstructuredKsvc.GetNamespace(),
 		FunctionName: unstructuredKsvc.GetName(),
 	}
+}
+
+type HarborProject struct {
+	ProjectName string `json:"project_name"`
+}
+
+func (s *Service) CreateHarborProject(client dynamic.Interface, httpClient *http.Client) error {
+	harborProject := &HarborProject{
+		ProjectName: s.Owner.UserName,
+	}
+	ServerAddress, ok := os.LookupEnv("DOCKER_REGISTRY")
+	if !ok {
+		return fmt.Errorf("failed to get DOCKER_REGISTRY env")
+	}
+	Username, ok := os.LookupEnv("DOCKER_USERNAME")
+	if !ok {
+		return fmt.Errorf("failed to get DOCKER_USERNAME env")
+	}
+	Password, ok := os.LookupEnv("DOCKER_PASSWORD")
+	if !ok {
+		return fmt.Errorf("failed to get DOCKER_PASSWORD env")
+	}
+
+	jsonValue, err := json.Marshal(harborProject)
+	if err != nil {
+		return fmt.Errorf("failed to marshal Harbor project: %w", err)
+	}
+	logrus.Println(string(jsonValue))
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s/api/v2.0/projects", ServerAddress), bytes.NewBuffer(jsonValue))
+	if err != nil {
+		return fmt.Errorf("failed to create Harbor project request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.SetBasicAuth(Username, Password)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to create Harbor project: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to create Harbor project: %s", resp.Status)
+	}
+	return nil
+
 }
