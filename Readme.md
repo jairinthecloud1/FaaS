@@ -58,3 +58,11 @@ kubectl patch secret faas-api-secret -p '{"data":{"DOCKER_USERNAME":"base64==","
 ```bash
 kubectl rollout restart deployment/faas-api
 ```
+
+## Add keycloak to the cluster
+
+```bash
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm repo update
+helm install my-keycloak bitnami/keycloak --version 24.4.13
+```
