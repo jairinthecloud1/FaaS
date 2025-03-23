@@ -11,7 +11,6 @@ kubectl apply -f kservice.yml
 kubectl get ksvc
 ```
 
-
 ## Setup dashboard for local development
 
 ```bash
@@ -37,14 +36,6 @@ kubectl apply -f infra.yml
 kubectl create token -n kubernetes-dashboard kubernetes-dashboard
 ```
 
-## Setup Harbor
-
-```bash
-helm repo add harbor https://helm.goharbor.io
-helm repo update
-helm install harbor harbor/harbor -f harbor-values.yml
-```
-
 ## Setup ingress
 
 ```bash
@@ -54,4 +45,16 @@ helm repo update
 helm install nginx-ingress ingress-nginx/ingress-nginx
 
 kubectl port-forward svc/nginx-ingress-ingress-nginx-controller 80:80
+```
+
+## Finally patch the secrets the go application needs to communicate with Docker Hub
+
+```bash
+kubectl patch secret faas-api-secret -p '{"data":{"DOCKER_USERNAME":"base64==","DOCKER_PASSWORD":"base64="}}'
+```
+
+## Optional: restart the faas-api deployment
+
+```bash
+kubectl rollout restart deployment/faas-api
 ```

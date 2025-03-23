@@ -110,16 +110,17 @@ kind: ConfigMap
 metadata:
   name: faas-api-env
 data:
-  DOCKER_REGISTRY: "harbor.default.svc.cluster.local"
+  DOCKER_REGISTRY: "index.docker.io"
 ---
 apiVersion: v1
 kind: Secret
 metadata:
   name: faas-api-secret
 type: Opaque
+# populate the secret with the docker username and password via a shell command
 data:
-  DOCKER_USERNAME: YWRtaW4=
-  DOCKER_PASSWORD: YWRtaW4=
+  DOCKER_USERNAME: ""
+  DOCKER_PASSWORD: ""
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -147,10 +148,6 @@ spec:
           volumeMounts:
             - name: dind-data
               mountPath: /var/lib/docker
-          args:
-            - --insecure-registry=harbor.default.svc.cluster.local
-            - --insecure-registry=registry.faas.test
-            - --insecure-registry=harbor
           resources:
             requests:
               cpu: "500m"
@@ -259,15 +256,5 @@ spec:
                 name: faas-api
                 port:
                   number: 8090
-    - host: registry.faas.test
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: harbor
-                port:
-                  number: 80
 ---
 

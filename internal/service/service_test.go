@@ -2,11 +2,9 @@ package service
 
 import (
 	"flag"
-	"net/http"
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
@@ -288,30 +286,4 @@ func TestGetFunctionURL(t *testing.T) {
 	if ret != "http://test-service.default.example.com" {
 		t.Errorf("expected URL 'http://test-service.default.example.com', got %s", ret)
 	}
-}
-
-func TestCreateHarborProject(t *testing.T) {
-	// Create a simple runtime scheme. The dynamic fake client doesn't require you to add the object
-	// to the scheme if you are using unstructured types.
-	scheme := runtime.NewScheme()
-
-	t.Setenv("DOCKER_REGISTRY", "registry.faas.test")
-	t.Setenv("DOCKER_USERNAME", "admin")
-	t.Setenv("DOCKER_PASSWORD", "admin")
-	// Initialize a fake dynamic client.
-	client := dynamicfake.NewSimpleDynamicClient(scheme)
-
-	service := Service{
-		Image:        "gcr.io/test/image:latest",
-		Namespace:    "default",
-		FunctionName: "test-service",
-		Owner: ServiceOwner{
-			Email:    "test@test",
-			Name:     "test",
-			UserName: "test",
-		},
-	}
-
-	err := service.CreateHarborProject(client, http.DefaultClient)
-	require.NoError(t, err)
 }
