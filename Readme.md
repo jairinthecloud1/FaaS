@@ -1,7 +1,7 @@
 ## setup kind for local development
 
 ```bash
-kn quickstart kind
+kn quickstart kind --name faas
 ```
 
 ## Test Kservice
