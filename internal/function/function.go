@@ -46,6 +46,12 @@ func getEnvironmentVariables() (string, string, string) {
 		serverAddress = ""
 		log.Println("DOCKER_REGISTRY not found")
 	}
+
+	// sanitize the values to avoid errors remove \n
+	username = strings.Replace(username, "\n", "", -1)
+	password = strings.Replace(password, "\n", "", -1)
+	serverAddress = strings.Replace(serverAddress, "\n", "", -1)
+
 	return username, password, serverAddress
 }
 
@@ -82,6 +88,8 @@ func (f *FunctionRequest) BuildDockerImage() (string, error) {
 
 	// login to the registry
 	username, password, serverAddress := getEnvironmentVariables()
+
+	log.Printf("Logging in to Docker registry %v, %v, %v", serverAddress, username, password)
 
 	authConfig := registry.AuthConfig{
 		Username:      username,

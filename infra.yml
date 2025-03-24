@@ -117,10 +117,6 @@ kind: Secret
 metadata:
   name: faas-api-secret
 type: Opaque
-# populate the secret with the docker username and password via a shell command
-data:
-  DOCKER_USERNAME: ""
-  DOCKER_PASSWORD: ""
 ---
 apiVersion: apps/v1
 kind: Deployment
