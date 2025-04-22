@@ -2,17 +2,23 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	handler "faas-api/internal"
 	"faas-api/internal/container"
+	"faas-api/internal/service"
 
 	"github.com/docker/docker/client"
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	log "github.com/sirupsen/logrus"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 )
 
 // waitForDocker pings the Docker daemon until it becomes available or times out.
@@ -54,11 +60,35 @@ func main() {
 		log.WithError(err).WithField("client", cli).Error("failed to login to registry")
 	}
 
+	var kubeconfig *string
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+	flag.Parse()
+
+	// use the current context in kubeconfig
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// create the clientset
+	service.Clientset, err = dynamic.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
 	api.GET("/health", func(c echo.Context) error {
 		return c.String(200, "OK")
 	})
 
 	api.POST("/functions", handler.PostFunctionHandler)
+
+	api.GET("/functions/:name", handler.GetFunctionHandler)
+
+	api.GET("/functions", handler.ListFunctionsHandler)
 
 	// Start the server on port 8090.
 	e.Logger.Fatal(e.Start(":8090"))

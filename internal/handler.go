@@ -2,6 +2,7 @@ package handler
 
 import (
 	"faas-api/internal/function"
+	"faas-api/internal/service"
 	"fmt"
 	"net/http"
 
@@ -32,4 +33,27 @@ func PostFunctionHandler(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, result)
+}
+
+func GetFunctionHandler(c echo.Context) error {
+	functionName := c.Param("name")
+	if functionName == "" {
+		return c.JSON(http.StatusBadRequest, "function name is required")
+	}
+
+	function, err := service.GetKnativeService(service.Clientset, "default", functionName)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, function)
+}
+
+func ListFunctionsHandler(c echo.Context) error {
+	functions, err := service.ListKnativeServices(service.Clientset, "default")
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, functions)
 }
