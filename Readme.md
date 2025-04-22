@@ -1,3 +1,14 @@
+# Faas-Local-Development
+
+## Prerequisites
+
+- [Docker](https://docs.docker.com/get-docker/)
+- [Kubernetes](https://kubernetes.io/docs/tasks/tools/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/)
+- [Helm](https://helm.sh/docs/intro/install/)
+- [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/)
+- [Knative](https://knative.dev/docs/install/)
+
 ## setup kind for local development
 
 ```bash
@@ -57,12 +68,4 @@ kubectl patch secret faas-api-secret -p '{"data":{"DOCKER_USERNAME":"base64==","
 
 ```bash
 kubectl rollout restart deployment/faas-api
-```
-
-## Add keycloak to the cluster
-
-```bash
-helm repo add bitnami https://charts.bitnami.com/bitnami
-helm repo update
-helm install my-keycloak bitnami/keycloak --version 24.4.13
 ```

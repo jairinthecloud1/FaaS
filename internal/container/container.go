@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
@@ -26,8 +27,8 @@ func Auth(ctx context.Context, cli *client.Client) error {
 	}
 
 	authConfig := registry.AuthConfig{
-		Username:      Username,
-		Password:      Password,
+		Username:      strings.ReplaceAll(Username,"\n", ""),
+		Password:      strings.ReplaceAll(Password,"\n", ""),
 		ServerAddress: ServerAddress,
 	}
 	result, err := cli.RegistryLogin(ctx, authConfig)
