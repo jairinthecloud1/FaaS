@@ -1,4 +1,10 @@
-# Faas-Local-Development
+# Faas
+
+## Overview
+
+FaaS is a serverless framework that allows you to deploy and manage functions as a service on Kubernetes. It provides a simple and efficient way to run your code in response to events, without the need to manage the underlying infrastructure.
+
+For the C-4 model of this project please go to [C4 Model](assets/c4.svg)
 
 ## Prerequisites
 
@@ -58,14 +64,47 @@ helm install nginx-ingress ingress-nginx/ingress-nginx
 kubectl port-forward svc/nginx-ingress-ingress-nginx-controller 80:80
 ```
 
+if you cannot use port 80, feel free to use another port for example:
+
+```bash
+kubectl port-forward svc/nginx-ingress-ingress-nginx-controller 8888:80
+```
+
+you will have to set the port in your requests during testing
+
 ## Finally patch the secrets the go application needs to communicate with Docker Hub
+
+Replace `base64==` with the base64 encoded username and password for Docker Hub.
 
 ```bash
 kubectl patch secret faas-api-secret -p '{"data":{"DOCKER_USERNAME":"base64==","DOCKER_PASSWORD":"base64="}}'
 ```
 
-## Optional: restart the faas-api deployment
+## restart the faas-api deployment
 
 ```bash
 kubectl rollout restart deployment/faas-api
+```
+
+## The auth flow is under construction
+
+For now as a placeholder there is a middleware function that checks the headers.Authorization
+per request for a value `Bearer valid-token`, this will be replaced with the actual implementation of
+proper authN|Z
+
+## Quick tests
+
+set <www.faas.test> in your /etc/hosts file and run the following command
+
+```bash
+curl --location 'www.faas.test:8888/api/health'
+```
+
+```bash
+curl --location 'www.faas.test:8888
+```
+
+```bash
+curl --location 'www.faas.test:8888/api/functions' \
+--header 'Authorization: Bearer valid-token'
 ```

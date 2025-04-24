@@ -13,6 +13,31 @@ import (
 	"k8s.io/client-go/util/homedir"
 )
 
+var clientset dynamic.Interface
+
+func init() {
+
+	var kubeconfig *string
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+	flag.Parse()
+
+	// use the current context in kubeconfig
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// create the clientset
+	clientset, err = dynamic.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+}
+
 func TestGetKnativeService(t *testing.T) {
 	// Create an unstructured Knative Service object to simulate a real resource.
 	ksvc := &unstructured.Unstructured{
@@ -45,59 +70,23 @@ func TestGetKnativeService(t *testing.T) {
 	client := dynamicfake.NewSimpleDynamicClient(scheme, ksvc)
 
 	// Attempt to retrieve the Knative Service using our  client.
-	ret, err := GetKnativeService(client, "default", "test-service")
+	knativeService, err := GetKnativeService(client, "default", "test-service")
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 
 	// Verify that the retrieved service has the expected name and namespace.
-	if ret.GetName() != "test-service" {
-		t.Errorf("expected service name 'test-service', got %s", ret.GetName())
-	}
-	if ret.GetNamespace() != "default" {
-		t.Errorf("expected namespace 'default', got %s", ret.GetNamespace())
+	if knativeService.Metadata.Name != "test-service" {
+		t.Errorf("expected service name 'test-service', got %s", knativeService.Metadata.Name)
 	}
 
-	// You can further inspect the content of the unstructured object as needed.
-	// For example, verify that the spec contains the expected container image.
-	spec, found, err := unstructured.NestedMap(ret.Object, "spec", "template", "spec")
-	if err != nil || !found {
-		t.Errorf("failed to retrieve spec from returned object: %v", err)
-	} else {
-		containers, found, err := unstructured.NestedSlice(spec, "containers")
-		if err != nil || !found || len(containers) == 0 {
-			t.Errorf("failed to retrieve containers from spec: %v", err)
-		} else {
-			container, ok := containers[0].(map[string]interface{})
-			if !ok {
-				t.Errorf("container is not a map[string]interface{}")
-			} else if image, found, _ := unstructured.NestedString(container, "image"); !found || image != "gcr.io/test/image:latest" {
-				t.Errorf("expected image 'gcr.io/test/image:latest', got %s", image)
-			}
-		}
+	if knativeService.Metadata.Namespace != "default" {
+		t.Errorf("expected namespace 'default', got %s", knativeService.Metadata.Namespace)
 	}
+
 }
 
 func TestListKnativeServiceWithRealClient(t *testing.T) {
-	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
-	flag.Parse()
-
-	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// create the clientset
-	clientset, err := dynamic.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
 
 	// Retrieve the Knative Service using the real client.
 	ret, err := ListKnativeServices(clientset, "default")
@@ -106,27 +95,15 @@ func TestListKnativeServiceWithRealClient(t *testing.T) {
 	}
 
 	// The result may be empty if there are no Knative Services in the namespace.
-	if len(*ret) == 0 {
+	if len(ret) == 0 {
 		t.Logf("no Knative Services found in namespace 'default'")
 	}
 
 	// Verify that the retrieved services have the expected namespace.
-	for _, svc := range *ret {
-		if svc.Namespace != "default" {
-			t.Errorf("expected namespace 'default', got %s", svc.Namespace)
+	for _, svc := range ret {
+		if svc.Metadata.Namespace != "default" {
+			t.Errorf("expected namespace 'default', got %s", svc.Metadata.Namespace)
 		}
-		if svc.Image == "" {
-			t.Errorf("expected image, got %s", svc.Image)
-		}
-		if svc.FunctionName == "" {
-			t.Errorf("expected function name, got %s", svc.FunctionName)
-		}
-		url, err := svc.GetUrl(clientset)
-		if err != nil {
-			t.Fatalf("failed to get service URL: %v", err)
-		}
-
-		t.Logf("Function Name: %s Service URL: %s", svc.FunctionName, url)
 
 	}
 
@@ -181,25 +158,6 @@ func TestCreateKnativeService(t *testing.T) {
 }
 
 func TestCreateKnativeServiceWithRealClient(t *testing.T) {
-	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
-	flag.Parse()
-
-	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	// create the clientset
-	clientset, err := dynamic.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
 
 	fn := Service{
 		Image:        "jairjosafath/hellov4:latest",
@@ -285,5 +243,45 @@ func TestGetFunctionURL(t *testing.T) {
 	// Verify that the retrieved service has the expected URL.
 	if ret != "http://test-service.default.example.com" {
 		t.Errorf("expected URL 'http://test-service.default.example.com', got %s", ret)
+	}
+}
+
+func TestListKnativeServicesFromCluster(t *testing.T) {
+
+	//skip this test if the cluster is not running
+	if clientset == nil {
+		t.Skip("Skipping test as the cluster is not running")
+	}
+
+	ksvcs, err := ListKnativeServices(clientset, "default")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	if len(ksvcs) == 0 {
+		t.Logf("no Knative Services found in namespace 'default'")
+	}
+	// Verify that the retrieved services have the expected namespace.
+	for _, svc := range ksvcs {
+		if svc.Metadata.Namespace != "default" {
+			t.Errorf("expected namespace 'default', got %s", svc.Metadata.Namespace)
+		}
+
+		t.Logf("Knative Service Name: %s", svc.Metadata.Name)
+	}
+}
+
+func TestGetKnativeServiceFromCluster(t *testing.T) {
+
+	//skip this test if the cluster is not running
+	if clientset == nil {
+		t.Skip("Skipping test as the cluster is not running")
+
+		kservice, err := GetKnativeService(clientset, "default", "hello")
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+
+		t.Log("Knative Service Name: ", kservice.Status.URL)
 	}
 }

@@ -3,11 +3,13 @@ package function
 import (
 	"bytes"
 	"context"
+	"faas-api/internal/container"
 	"faas-api/internal/service"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
@@ -17,6 +19,8 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 )
+
+var DockerClient *client.Client
 
 type EnvVar struct {
 	Key   string `json:"key"`
@@ -28,6 +32,45 @@ type FunctionRequest struct {
 	Name    string   `json:"name"`
 	EnvVars []EnvVar `json:"env_vars"`
 	File    []byte   `json:"file"` // the binary contents of the uploaded zip file (base64 encoded in JSON)
+}
+
+// waitForDocker pings the Docker daemon until it becomes available or times out.
+func waitForDocker(ctx context.Context, cli *client.Client, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		if _, err := cli.Ping(ctx); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timed out waiting for Docker daemon")
+		}
+		log.Warn("Docker daemon not ready, retrying in 2 seconds...")
+		time.Sleep(2 * time.Second)
+	}
+
+	if err := container.Auth(ctx, cli); err != nil {
+		log.WithError(err).WithField("client", cli).Error("failed to login to registry")
+	}
+	return nil
+}
+
+func ConfigDockerClient() error {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		log.WithError(err).Error("failed to create docker client")
+	}
+	defer cli.Close()
+
+	ctx := context.Background()
+	// Wait up to 30 seconds for the Docker daemon to become available.
+	if err := waitForDocker(ctx, cli, 30*time.Second); err != nil {
+		log.WithError(err).Error("docker daemon not available")
+		os.Exit(1)
+	}
+
+	DockerClient = cli
+
+	return nil
 }
 
 func getEnvironmentVariables() (string, string, string) {
@@ -80,11 +123,6 @@ func (f *FunctionRequest) GetTar() ([]byte, error) {
 }
 
 func (f *FunctionRequest) BuildDockerImage() (string, error) {
-	cli, err := client.NewClientWithOpts(client.FromEnv,
-		client.WithAPIVersionNegotiation())
-	if err != nil {
-		return "", fmt.Errorf("failed to create Docker client: %w", err)
-	}
 
 	// login to the registry
 	username, password, serverAddress := getEnvironmentVariables()
@@ -115,7 +153,7 @@ func (f *FunctionRequest) BuildDockerImage() (string, error) {
 		Remove:      true,
 		ForceRemove: true,
 	}
-	buildResponse, err := cli.ImageBuild(context.Background(), buildCtx, buildOptions)
+	buildResponse, err := DockerClient.ImageBuild(context.Background(), buildCtx, buildOptions)
 	if err != nil {
 		return "", fmt.Errorf("failed to build Docker image: %w", err)
 	}
@@ -131,7 +169,7 @@ func (f *FunctionRequest) BuildDockerImage() (string, error) {
 	pushOptions := image.PushOptions{
 		RegistryAuth: token,
 	}
-	pushResponse, err := cli.ImagePush(context.Background(),
+	pushResponse, err := DockerClient.ImagePush(context.Background(),
 		f.GetImageName(),
 		pushOptions)
 	if err != nil {

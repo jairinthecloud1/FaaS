@@ -11,6 +11,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+
+
 func Auth(ctx context.Context, cli *client.Client) error {
 	ServerAddress, ok := os.LookupEnv("DOCKER_REGISTRY")
 	if !ok {
