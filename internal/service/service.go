@@ -3,17 +3,14 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
+	"k8s.io/client-go/rest"
 )
 
 var Clientset dynamic.Interface
@@ -154,24 +151,14 @@ type TrafficStatus struct {
 
 func ConfigK8Client() error {
 
-	var kubeconfig *string
-	if home := homedir.HomeDir(); home != "" {
-		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
-	} else {
-		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	}
-	flag.Parse()
-
-	// use the current context in kubeconfig
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	cfg, err := rest.InClusterConfig()
 	if err != nil {
-		panic(err.Error())
+		return fmt.Errorf("failed to get in-cluster config: %w", err)
 	}
 
-	// create the clientset
-	Clientset, err = dynamic.NewForConfig(config)
+	Clientset, err = dynamic.NewForConfig(cfg)
 	if err != nil {
-		panic(err.Error())
+		return fmt.Errorf("failed to create dynamic client: %w", err)
 	}
 
 	return nil
