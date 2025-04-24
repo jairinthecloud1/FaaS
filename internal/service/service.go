@@ -3,13 +3,17 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 )
 
 var Clientset dynamic.Interface
@@ -146,6 +150,31 @@ type TrafficStatus struct {
 	LatestRevision bool   `json:"latestRevision"`
 	Percent        int    `json:"percent"`
 	RevisionName   string `json:"revisionName"`
+}
+
+func ConfigK8Client() error {
+
+	var kubeconfig *string
+	if home := homedir.HomeDir(); home != "" {
+		kubeconfig = flag.String("kubeconfig", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	}
+	flag.Parse()
+
+	// use the current context in kubeconfig
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	// create the clientset
+	Clientset, err = dynamic.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	return nil
 }
 
 func (s *Service) Deploy(client dynamic.Interface) (*unstructured.Unstructured, error) {
