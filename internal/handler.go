@@ -9,8 +9,6 @@ import (
 	echo "github.com/labstack/echo/v4"
 )
 
-
-
 func PostFunctionHandler(c echo.Context) error {
 
 	fileBytes, runtime, name, envVars, err := function.ProcessRequestData(c)

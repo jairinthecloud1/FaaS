@@ -57,7 +57,11 @@ func ConfigDockerClient() error {
 	if err != nil {
 		log.WithError(err).Error("failed to create docker client")
 	}
-	defer cli.Close()
+	defer func() {
+		if err = cli.Close(); err != nil {
+			log.WithError(err).Error("failed to close docker client")
+		}
+	}()
 
 	ctx := context.Background()
 	// Wait up to 30 seconds for the Docker daemon to become available.
@@ -89,9 +93,9 @@ func getEnvironmentVariables() (string, string, string) {
 	}
 
 	// sanitize the values to avoid errors remove \n
-	username = strings.Replace(username, "\n", "", -1)
-	password = strings.Replace(password, "\n", "", -1)
-	serverAddress = strings.Replace(serverAddress, "\n", "", -1)
+	username = strings.ReplaceAll(username, "\n", "")
+	password = strings.ReplaceAll(password, "\n", "")
+	serverAddress = strings.ReplaceAll(serverAddress, "\n", "")
 
 	return username, password, serverAddress
 }
@@ -155,7 +159,11 @@ func (f *FunctionRequest) BuildDockerImage() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to build Docker image: %w", err)
 	}
-	defer buildResponse.Body.Close()
+	defer func() {
+		if err = buildResponse.Body.Close(); err != nil {
+			log.WithError(err).Error("failed to close docker client")
+		}
+	}()
 
 	// Read the build response to completion.
 	_, err = io.Copy(os.Stdout, buildResponse.Body)
@@ -173,7 +181,11 @@ func (f *FunctionRequest) BuildDockerImage() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to push Docker image: %w", err)
 	}
-	defer pushResponse.Close()
+	defer func() {
+		if err = pushResponse.Close(); err != nil {
+			log.WithError(err).Error("failed to close docker client")
+		}
+	}()
 
 	// Read the push response to completion.
 	_, err = io.Copy(os.Stdout, pushResponse)
