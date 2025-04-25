@@ -11,14 +11,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-
-
 func Auth(ctx context.Context, cli *client.Client) error {
 	ServerAddress, ok := os.LookupEnv("DOCKER_REGISTRY")
 	if !ok {
 		return fmt.Errorf("failed to get DOCKER_REGISTRY env")
 	}
-	defer cli.Close()
+	var err error
+
+	defer func() {
+		if err = cli.Close(); err != nil {
+			log.WithError(err).Error("failed to close docker client")
+		}
+	}()
 	Username, ok := os.LookupEnv("DOCKER_USERNAME")
 	if !ok {
 		return fmt.Errorf("failed to get DOCKER_USERNAME env")
@@ -29,8 +33,8 @@ func Auth(ctx context.Context, cli *client.Client) error {
 	}
 
 	authConfig := registry.AuthConfig{
-		Username:      strings.ReplaceAll(Username,"\n", ""),
-		Password:      strings.ReplaceAll(Password,"\n", ""),
+		Username:      strings.ReplaceAll(Username, "\n", ""),
+		Password:      strings.ReplaceAll(Password, "\n", ""),
 		ServerAddress: ServerAddress,
 	}
 	result, err := cli.RegistryLogin(ctx, authConfig)

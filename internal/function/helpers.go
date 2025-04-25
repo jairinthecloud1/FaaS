@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+
 	"mime/multipart"
 	"net/http"
 	"time"
@@ -16,6 +16,7 @@ import (
 	echo "github.com/labstack/echo/v4"
 
 	"github.com/mholt/archives"
+	log "github.com/sirupsen/logrus"
 )
 
 func FormFileToBytes(ctx echo.Context, formFile *multipart.FileHeader) ([]byte, error) {
@@ -23,7 +24,11 @@ func FormFileToBytes(ctx echo.Context, formFile *multipart.FileHeader) ([]byte, 
 	if err != nil {
 		return nil, ctx.String(http.StatusInternalServerError, "Unable to open the file: "+err.Error())
 	}
-	defer src.Close()
+	defer func() {
+		if err = src.Close(); err != nil {
+			log.WithError(err).Error("failed to close docker client")
+		}
+	}()
 
 	// Read the entire file into memory (do not save on disk)
 	fileBytes, err := io.ReadAll(src)
@@ -99,7 +104,11 @@ func ZipToTar(stream io.Reader) ([]byte, error) {
 	// Create a buffer to hold the tar archive.
 	var buf bytes.Buffer
 	tarWriter := tar.NewWriter(&buf)
-	defer tarWriter.Close()
+	defer func() {
+		if err = tarWriter.Close(); err != nil {
+			log.WithError(err).Error("failed to close docker client")
+		}
+	}()
 
 	// Iterate over each file in the ZIP archive.
 	for _, zipFile := range zipReader.File {
@@ -113,7 +122,11 @@ func ZipToTar(stream io.Reader) ([]byte, error) {
 		// The second parameter (link string) is only used for symlinks.
 		header, err := tar.FileInfoHeader(zipFile.FileInfo(), zipFile.Name)
 		if err != nil {
-			f.Close()
+			defer func() {
+				if err = f.Close(); err != nil {
+					log.WithError(err).Error("failed to close docker client")
+				}
+			}()
 			return nil, fmt.Errorf("creating tar header for %s: %w", zipFile.Name, err)
 		}
 		// Ensure the header name is set to the original file name.
@@ -121,22 +134,33 @@ func ZipToTar(stream io.Reader) ([]byte, error) {
 
 		// Write the header into the tar archive.
 		if err := tarWriter.WriteHeader(header); err != nil {
-			f.Close()
+			defer func() {
+				if err = f.Close(); err != nil {
+					log.WithError(err).Error("failed to close docker client")
+				}
+			}()
 			return nil, fmt.Errorf("writing tar header for %s: %w", zipFile.Name, err)
 		}
 
 		// Copy the file data from the ZIP entry to the TAR archive.
 		if _, err := io.Copy(tarWriter, f); err != nil {
-			f.Close()
+			defer func() {
+				if err = f.Close(); err != nil {
+					log.WithError(err).Error("failed to close docker client")
+				}
+			}()
 			return nil, fmt.Errorf("copying file data for %s: %w", zipFile.Name, err)
 		}
-		f.Close()
+		defer func() {
+			if err = f.Close(); err != nil {
+				log.WithError(err).Error("failed to close docker client")
+			}
+		}()
 	}
 
 	// Ensure the tar writer is closed (deferred above) so all data is flushed.
 	return buf.Bytes(), nil
 }
-
 
 func InjectDockerfile(tarData []byte) ([]byte, error) {
 	// Create a buffer for the new tar archive.
@@ -153,20 +177,32 @@ func InjectDockerfile(tarData []byte) ([]byte, error) {
 			break // End of archive.
 		}
 		if err != nil {
-			tw.Close()
+			defer func() {
+				if err = tw.Close(); err != nil {
+					log.WithError(err).Error("failed to close docker client")
+				}
+			}()
 			return nil, fmt.Errorf("error reading original tar: %w", err)
 		}
 
 		// Write the header to the new tar archive.
 		if err := tw.WriteHeader(header); err != nil {
-			tw.Close()
+			defer func() {
+				if err = tw.Close(); err != nil {
+					log.WithError(err).Error("failed to close docker client")
+				}
+			}()
 			return nil, fmt.Errorf("error writing header for %s: %w", header.Name, err)
 		}
 
 		// For regular files, copy the file content.
 		if header.Typeflag == tar.TypeReg {
 			if _, err := io.Copy(tw, tr); err != nil {
-				tw.Close()
+				defer func() {
+					if err = tw.Close(); err != nil {
+						log.WithError(err).Error("failed to close docker client")
+					}
+				}()
 				return nil, fmt.Errorf("error copying data for %s: %w", header.Name, err)
 			}
 		}
@@ -200,11 +236,19 @@ CMD [ "npm", "start" ]
 
 	// Write the Dockerfile header and its content.
 	if err := tw.WriteHeader(header); err != nil {
-		tw.Close()
+		defer func() {
+			if err = tw.Close(); err != nil {
+				log.WithError(err).Error("failed to close docker client")
+			}
+		}()
 		return nil, fmt.Errorf("error writing Dockerfile header: %w", err)
 	}
 	if _, err := tw.Write([]byte(dockerfileContent)); err != nil {
-		tw.Close()
+		defer func() {
+			if err = tw.Close(); err != nil {
+				log.WithError(err).Error("failed to close docker client")
+			}
+		}()
 		return nil, fmt.Errorf("error writing Dockerfile data: %w", err)
 	}
 
