@@ -61,12 +61,6 @@ helm repo update
 
 helm install nginx-ingress ingress-nginx/ingress-nginx
 
-kubectl port-forward svc/nginx-ingress-ingress-nginx-controller 80:80
-```
-
-if you cannot use port 80, feel free to use another port for example:
-
-```bash
 kubectl port-forward svc/nginx-ingress-ingress-nginx-controller 8888:80
 ```
 
