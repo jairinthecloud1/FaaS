@@ -1,0 +1,39 @@
+---
+    name: golang
+    "on": push
+    permissions:
+      contents: read
+      packages: read
+    jobs:
+      mcvs-golang-action:
+        strategy:
+          matrix:
+            args:
+              - testing-type: lint
+              - testing-type: lint-commit
+              - testing-type: security-golang-modules
+              - testing-type: security-grype
+              - testing-type: security-trivy
+              - testing-type: unit
+        runs-on: ubuntu-24.04
+        env:
+          TASK_X_REMOTE_TASKFILES: 1
+        steps:
+          - uses: actions/checkout@v4.2.2
+          - uses: schubergphilis/mcvs-golang-action@v1.1.2
+            env:
+              test-timeout: 2m0s
+            with:
+              build-tags: ${{ matrix.args.build-tags }}
+              code-coverage-expected: 50
+              code-coverage-timeout: ${{ env.test-timeout }}
+              golang-unit-tests-exclusions: |-
+                \(api\/swagger\|cmd\/mcvs-chart-designer\|cmd\/mcvs-determiner-\(aws\|k8s\)-\(container\|container\|lambda\)\|cmd\/mcvs-downloader-aws-container\|cmd\/mcvs-inventory-taker-aws-lambda\|cmd\/mcvs-reporter\|cmd\/mcvs-scanner\|cmd\/mcvs-scanner-cli\|cmd\/mcvs-scanner-testdata-cli\|deprecated\|internal\/app\/mcvs-chart-designer\/\(application\|data\)\|internal\/app\/mcvs-determiner-\(aws\|k8s\)-container\/\(application\|data\|presentation\)\|internal\/app\/mcvs-inventory-taker-aws-lambda\/\(application\|presentation\)\|internal\/app\/mcvs-reporter\/\(application\|data\)\|internal\/app\/mcvs-scanner-cli\/application\/swagger\|internal\/pkg\/data\/dataset\|mocks\)
+              test-timeout: ${{ env.test-timeout }}
+              testing-type: ${{ matrix.args.testing-type }}
+              token: ${{ secrets.GITHUB_TOKEN }}
+              trivy-action-db: |-
+                ghcr.io/schubergphilis/mcvs-scanner-trivy-db:2
+              trivy-action-java-db: |-
+                ghcr.io/schubergphilis/mcvs-scanner-trivy-java-db:1
+    
