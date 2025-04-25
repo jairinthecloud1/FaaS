@@ -137,19 +137,6 @@ func ZipToTar(stream io.Reader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// func isTar(tarData []byte) (bool, error) {
-// 	// identify format
-// 	format, _, err := archives.Identify(context.TODO(), "user-code", bytes.NewReader(tarData))
-// 	if err != nil {
-// 		log.Fatal(err)
-// 		return false, err
-// 	}
-
-// 	if format.MediaType() == "application/x-tar" {
-// 		return true, nil
-// 	}
-// 	return false, nil
-// }
 
 func InjectDockerfile(tarData []byte) ([]byte, error) {
 	// Create a buffer for the new tar archive.
@@ -177,7 +164,7 @@ func InjectDockerfile(tarData []byte) ([]byte, error) {
 		}
 
 		// For regular files, copy the file content.
-		if header.Typeflag == tar.TypeReg || header.Typeflag == tar.TypeRegA {
+		if header.Typeflag == tar.TypeReg {
 			if _, err := io.Copy(tw, tr); err != nil {
 				tw.Close()
 				return nil, fmt.Errorf("error copying data for %s: %w", header.Name, err)

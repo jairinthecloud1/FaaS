@@ -16,8 +16,6 @@ import (
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/rest"
 )
 
 var DockerClient *client.Client
@@ -201,16 +199,6 @@ func (f *FunctionRequest) BuildDockerImage() (string, error) {
 
 func (f *FunctionRequest) Serve() (string, error) {
 
-	// creates the in-cluster config
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		panic(err.Error())
-	}
-	// creates the clientset
-	clientset, err := dynamic.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
 	image, err := f.BuildDockerImage()
 	if err != nil {
 		return "", fmt.Errorf("failed to build Docker image: %w", err)
@@ -225,7 +213,7 @@ func (f *FunctionRequest) Serve() (string, error) {
 		Image:        image,
 	}
 
-	deployed, err := svc.Deploy(clientset)
+	deployed, err := svc.Deploy(service.Clientset)
 	if err != nil {
 		return "", fmt.Errorf("failed to deploy service: %w", err)
 	}
