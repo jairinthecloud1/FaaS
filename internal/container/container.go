@@ -29,8 +29,8 @@ func Auth(ctx context.Context, cli *client.Client) error {
 	}
 
 	authConfig := registry.AuthConfig{
-		Username:      strings.ReplaceAll(Username,"\n", ""),
-		Password:      strings.ReplaceAll(Password,"\n", ""),
+		Username:      strings.ReplaceAll(Username, "\n", ""),
+		Password:      strings.ReplaceAll(Password, "\n", ""),
 		ServerAddress: ServerAddress,
 	}
 	result, err := cli.RegistryLogin(ctx, authConfig)
