@@ -43,13 +43,11 @@ func TestNamespace(t *testing.T) {
 	username := "testuser"
 	provider := "testprovider"
 
-	result, err := CreateNamespace(t.Context(), clientset, username, provider)
+	namespace, err := CreateOrGetNamespace(t.Context(), clientset, username, provider)
 	require.NoError(t, err, "should not return an error when creating namespace")
-	require.NotEmpty(t, result, "result should not be empty")
-
-	namespace, err := GetNamespace(t.Context(), clientset, username, provider)
-	require.NoError(t, err, "should not return an error when getting namespace")
-
-	require.NotEmpty(t, namespace, "namespace should not be empty")
+	require.NotEmpty(t, namespace, "result should not be empty")
 	require.Equal(t, provider+"-"+username, namespace, "namespace should match the expected format")
+
+	err = DeleteNamespace(t.Context(), clientset, username, provider)
+	require.NoError(t, err, "should not return an error when deleting namespace")
 }

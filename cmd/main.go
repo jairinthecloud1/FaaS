@@ -35,7 +35,7 @@ func main() {
 
 	api.POST("/functions", handler.PostFunctionHandler, myMiddleware.IsAuthenticated)
 
-	api.GET("/functions/:name", handler.GetFunctionHandler)
+	api.GET("/functions/:name", handler.GetFunctionHandler, myMiddleware.IsAuthenticated)
 
 	api.GET("/functions", handler.ListFunctionsHandler, myMiddleware.IsAuthenticated)
 

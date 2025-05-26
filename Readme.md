@@ -95,7 +95,7 @@ curl --location 'www.faas.test:8888/api/health'
 ```
 
 ```bash
-curl --location 'www.faas.test:8888
+curl --location 'www.faas.test:8888'
 ```
 
 ```bash

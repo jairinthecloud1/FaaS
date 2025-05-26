@@ -61,3 +61,13 @@ func CreateOrGetNamespace(ctx context.Context, client dynamic.Interface, usernam
 func BuildNameSpaceName(username string, provider string) string {
 	return fmt.Sprintf("%s-%s", provider, username)
 }
+
+func DeleteNamespace(ctx context.Context, client dynamic.Interface, username string, provider string) error {
+	resource := schema.GroupVersionResource{
+		Version:  "v1",
+		Resource: "namespaces",
+	}
+
+	name := BuildNameSpaceName(username, provider)
+	return client.Resource(resource).Delete(ctx, name, metav1.DeleteOptions{})
+}
