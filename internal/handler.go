@@ -2,14 +2,13 @@ package handler
 
 import (
 	"faas-api/internal/function"
+	"faas-api/internal/k8/namespace"
 	"faas-api/internal/service"
 	"fmt"
 	"net/http"
 
 	echo "github.com/labstack/echo/v4"
 )
-
-
 
 func PostFunctionHandler(c echo.Context) error {
 
@@ -29,7 +28,21 @@ func PostFunctionHandler(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, err.Error())
 	}
 
-	result, err := function.Serve()
+	// get username from context
+	username := c.Get("username").(string)
+	provider := c.Get("provider").(string)
+	if username == "" {
+		return c.JSON(http.StatusUnauthorized, "username is required")
+	}
+
+	namespace, err := namespace.CreateOrGetNamespace(c.Request().Context(), service.Clientset, username, provider)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, fmt.Sprintf("error creating or getting namespace: %s", err.Error()))
+	}
+
+	// send namespace to function.Serve
+
+	result, err := function.Serve(namespace)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}
@@ -43,7 +56,10 @@ func GetFunctionHandler(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, "function name is required")
 	}
 
-	function, err := service.GetKnativeService(service.Clientset, "default", functionName)
+	username := c.Get("username").(string)
+	provider := c.Get("provider").(string)
+
+	function, err := service.GetKnativeService(service.Clientset, namespace.BuildNameSpaceName(username, provider), functionName)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}
@@ -52,7 +68,10 @@ func GetFunctionHandler(c echo.Context) error {
 }
 
 func ListFunctionsHandler(c echo.Context) error {
-	functions, err := service.ListKnativeServices(service.Clientset, "default")
+	username := c.Get("username").(string)
+	provider := c.Get("provider").(string)
+
+	functions, err := service.ListKnativeServices(service.Clientset, namespace.BuildNameSpaceName(username, provider))
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, err.Error())
 	}

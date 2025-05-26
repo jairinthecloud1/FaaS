@@ -197,7 +197,7 @@ func (f *FunctionRequest) BuildDockerImage() (string, error) {
 	return strings.Join(buildOptions.Tags, ":"), nil
 }
 
-func (f *FunctionRequest) Serve() (string, error) {
+func (f *FunctionRequest) Serve(namespace string) (string, error) {
 
 	image, err := f.BuildDockerImage()
 	if err != nil {
@@ -209,7 +209,7 @@ func (f *FunctionRequest) Serve() (string, error) {
 	// deploy the service
 	svc := service.Service{
 		FunctionName: f.Name,
-		Namespace:    "default",
+		Namespace:    namespace,
 		Image:        image,
 	}
 
