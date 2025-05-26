@@ -3,8 +3,6 @@ package function
 import (
 	"bytes"
 	"context"
-	"faas-api/internal/container"
-	"faas-api/internal/service"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +13,8 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	"github.com/docker/docker/client"
+	"github.com/jairinthecloud1/FaaS/internal/container"
+	"github.com/jairinthecloud1/FaaS/internal/service"
 	log "github.com/sirupsen/logrus"
 )
 

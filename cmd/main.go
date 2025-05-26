@@ -3,15 +3,27 @@ package main
 import (
 	"os"
 
-	handler "faas-api/internal"
-	"faas-api/internal/function"
-	myMiddleware "faas-api/internal/middleware"
-	"faas-api/internal/service"
+	handler "github.com/jairinthecloud1/FaaS/internal"
+	"github.com/jairinthecloud1/FaaS/internal/function"
+	myMiddleware "github.com/jairinthecloud1/FaaS/internal/middleware"
+	"github.com/jairinthecloud1/FaaS/internal/service"
+	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/github"
 
 	echo "github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	log "github.com/sirupsen/logrus"
 )
+
+func init() {
+	goth.UseProviders(
+		github.New(
+			os.Getenv("GITHUB_CLIENT_ID"),
+			os.Getenv("GITHUB_CLIENT_SECRET"),
+			"http://localhost:8090/auth/github/callback",
+		),
+	)
+}
 
 func main() {
 	e := echo.New()

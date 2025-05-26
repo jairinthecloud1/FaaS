@@ -1,15 +1,13 @@
 package handler
 
 import (
-	"faas-api/internal/function"
-	"faas-api/internal/service"
 	"fmt"
 	"net/http"
 
+	"github.com/jairinthecloud1/FaaS/internal/function"
+	"github.com/jairinthecloud1/FaaS/internal/service"
 	echo "github.com/labstack/echo/v4"
 )
-
-
 
 func PostFunctionHandler(c echo.Context) error {
 
