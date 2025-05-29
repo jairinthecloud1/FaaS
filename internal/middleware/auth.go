@@ -4,10 +4,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
 	"github.com/labstack/echo/v4"
 )
 
-func IsAuthenticated(next echo.HandlerFunc) echo.HandlerFunc {
+func IsAuthenticatedOld(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		// Check if the request has a valid token
 		token := c.Request().Header.Get("Authorization")
@@ -37,5 +39,15 @@ func IsAuthenticated(next echo.HandlerFunc) echo.HandlerFunc {
 		c.Set("provider", provider)
 
 		return next(c)
+	}
+}
+
+// IsAuthenticated is a middleware that checks if
+// the user has already been authenticated previously.
+func IsAuthenticated(ctx *gin.Context) {
+	if sessions.Default(ctx).Get("profile") == nil {
+		ctx.Redirect(http.StatusSeeOther, "/")
+	} else {
+		ctx.Next()
 	}
 }
