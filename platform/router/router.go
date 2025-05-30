@@ -2,23 +2,56 @@ package router
 
 import (
 	"encoding/gob"
+	"os"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 
+	handler "faas-api/internal"
+	"faas-api/internal/function"
+	"faas-api/internal/service"
 	"faas-api/platform/authenticator"
 	"faas-api/platform/middleware"
+	"faas-api/web/app/app"
 	"faas-api/web/app/callback"
 	"faas-api/web/app/home"
 	"faas-api/web/app/login"
 	"faas-api/web/app/logout"
 	"faas-api/web/app/user"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // New registers the routes and returns the router.
 func New(auth *authenticator.Authenticator) *gin.Engine {
+	if err := function.ConfigDockerClient(); err != nil {
+		log.WithError(err).Error("failed to create docker client")
+		os.Exit(1)
+	}
+
+	if err := service.ConfigK8Client(); err != nil {
+		log.WithError(err).Error("failed to create k8s client")
+		os.Exit(1)
+	}
+
 	router := gin.Default()
+
+	// Add CORS middleware for API routes
+	config := cors.DefaultConfig()
+	config.AllowOrigins = []string{"*"} // You can restrict this in production
+	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
+	config.AllowCredentials = true
+	// Only apply CORS to /api routes
+	router.Use(func(c *gin.Context) {
+		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
+			cors.New(config)(c)
+		} else {
+			c.Next()
+		}
+	})
 
 	// To store custom types in our cookies,
 	// we must first register them using gob.Register
@@ -36,52 +69,19 @@ func New(auth *authenticator.Authenticator) *gin.Engine {
 	router.GET("/user", middleware.IsAuthenticated, user.Handler)
 	router.GET("/logout", logout.Handler)
 
-	router.GET("/test", middleware.IsAuthenticated, func(ctx *gin.Context) {
-		username, ok := ctx.Get("username")
-		if !ok {
-			ctx.JSON(400, gin.H{"error": "username not found"})
-			return
-		}
-		provider, ok := ctx.Get("provider")
-		if !ok {
-			ctx.JSON(400, gin.H{"error": "provider not found"})
-			return
-		}
-		ctx.JSON(200, gin.H{
-			"username": username,
-			"provider": provider,
-		})
+	router.GET("/health", func(c *gin.Context) {
+		c.String(200, "OK")
 	})
 
-	// router.POST("/functions", middleware.IsAuthenticated, handler.PostFunctionHandler)
+	router.GET("/app", middleware.IsAuthenticated, app.Handler)
+
+	api := router.Group("/api", middleware.IsAuthenticated)
+
+	api.POST("/functions", handler.PostFunctionHandler)
+
+	api.GET("/functions/:name", handler.GetFunctionHandler)
+
+	api.GET("/functions", handler.ListFunctionsHandler)
 
 	return router
 }
-
-// e := echo.New()
-// e.Use(middleware.Logger())
-// e.Use(middleware.Recover())
-// api := e.Group("/api")
-
-// if err := function.ConfigDockerClient(); err != nil {
-// 	log.WithError(err).Error("failed to create docker client")
-// 	os.Exit(1)
-// }
-
-// if err := service.ConfigK8Client(); err != nil {
-// 	log.WithError(err).Error("failed to create k8s client")
-// 	os.Exit(1)
-// }
-
-// api.GET("/health", func(c echo.Context) error {
-// 	return c.String(200, "OK")
-// })
-
-// api.POST("/functions", handler.PostFunctionHandler, myMiddleware.IsAuthenticated)
-
-// api.GET("/functions/:name", handler.GetFunctionHandler, myMiddleware.IsAuthenticated)
-
-// api.GET("/functions", handler.ListFunctionsHandler, myMiddleware.IsAuthenticated)
-
-// // Start the server on port 8090.
-// e.Logger.Fatal(e.Start(":8090"))

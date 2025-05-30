@@ -7,14 +7,15 @@ import (
 	"fmt"
 	"net/http"
 
-	echo "github.com/labstack/echo/v4"
+	"github.com/gin-gonic/gin"
 )
 
-func PostFunctionHandler(c echo.Context) error {
+func PostFunctionHandler(c *gin.Context) {
 
 	fileBytes, runtime, name, envVars, err := function.ProcessRequestData(c)
 	if err != nil {
-		return fmt.Errorf("error processing request data: %w", err)
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("failed to process request data: %v", err)})
+		return
 	}
 
 	function := function.FunctionRequest{
@@ -25,56 +26,81 @@ func PostFunctionHandler(c echo.Context) error {
 	}
 
 	if err := function.Validate(); err != nil {
-		return c.JSON(http.StatusBadRequest, err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid function request: %v", err)})
+		return
 	}
 
-	// get username from context
-	username := c.Get("username").(string)
-	provider := c.Get("provider").(string)
+	username := c.GetString("username")
+	provider := c.GetString("provider")
 	if username == "" {
-		return c.JSON(http.StatusUnauthorized, "username is required")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "username is required"})
+		return
 	}
 
-	namespace, err := namespace.CreateOrGetNamespace(c.Request().Context(), service.Clientset, username, provider)
+	namespace, err := namespace.CreateOrGetNamespace(c, service.Clientset, username, provider)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, fmt.Sprintf("error creating or getting namespace: %s", err.Error()))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to create or get namespace: %v", err)})
+		return
 	}
-
-	// send namespace to function.Serve
 
 	result, err := function.Serve(namespace)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to serve function: %v", err)})
+		return
 	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Function deployed successfully",
+		"result":  result,
+	})
 
-	return c.JSON(http.StatusOK, result)
 }
 
-func GetFunctionHandler(c echo.Context) error {
+func GetFunctionHandler(c *gin.Context) {
 	functionName := c.Param("name")
 	if functionName == "" {
-		return c.JSON(http.StatusBadRequest, "function name is required")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "function name is required"})
+		return
 	}
 
-	username := c.Get("username").(string)
-	provider := c.Get("provider").(string)
+	// get username from context
+	username := c.GetString("username")
+	provider := c.GetString("provider")
+	if username == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "username is required"})
+		return
+	}
 
 	function, err := service.GetKnativeService(service.Clientset, namespace.BuildNameSpaceName(username, provider), functionName)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to get function: %v", err)})
+		return
 	}
 
-	return c.JSON(http.StatusOK, function)
+	if function == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "function not found"})
+		return
+	}
+	c.JSON(http.StatusOK, function)
 }
 
-func ListFunctionsHandler(c echo.Context) error {
-	username := c.Get("username").(string)
-	provider := c.Get("provider").(string)
+func ListFunctionsHandler(c *gin.Context) {
+	// get username from context
+	username := c.GetString("username")
+	provider := c.GetString("provider")
+	if username == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "username is required"})
+		return
+	}
 
 	functions, err := service.ListKnativeServices(service.Clientset, namespace.BuildNameSpaceName(username, provider))
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("failed to list functions: %v", err)})
+		return
+	}
+	if functions == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no functions found"})
+		return
 	}
 
-	return c.JSON(http.StatusOK, functions)
+	c.JSON(http.StatusOK, functions)
 }

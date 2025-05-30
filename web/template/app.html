@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Upload Function</title>
+    <link rel="stylesheet" href="/static/css/app.css" />
+    <style>
+      .env-pair {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .env-pair input {
+        width: 120px;
+      }
+      .env-pair button {
+        padding: 2px 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Upload a New Function</h1>
+    <form
+      id="functionForm"
+      method="post"
+      enctype="multipart/form-data"
+      action="#"
+    >
+      <label for="runtime">Runtime:</label>
+      <input type="text" id="runtime" name="runtime" required /><br /><br />
+
+      <label for="name">Name:</label>
+      <input type="text" id="name" name="name" required /><br /><br />
+
+      <label>Environment Variables:</label>
+      <div id="envVarsContainer"></div>
+      <button type="button" onclick="addEnvVar()">Add Env Var</button
+      ><br /><br />
+
+      <label for="file">Function Zip File:</label>
+      <input
+        type="file"
+        id="file"
+        name="file"
+        accept=".zip"
+        required
+      /><br /><br />
+
+      <button type="submit">Upload</button>
+    </form>
+
+    <script>
+      function addEnvVar() {
+        const container = document.getElementById("envVarsContainer");
+        const div = document.createElement("div");
+        div.className = "env-pair";
+        div.innerHTML = `
+                <input type="text" name="env_key[]" placeholder="Key" required>
+                <input type="text" name="env_value[]" placeholder="Value" required>
+                <button type="button" onclick="this.parentNode.remove()">Remove</button>
+            `;
+        container.appendChild(div);
+      }
+
+      // Optionally, add one env var by default
+      window.onload = function () {
+        addEnvVar();
+      };
+
+      document.getElementById('functionForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+
+        // Convert env vars to JSON array
+        const keys = formData.getAll('env_key[]');
+        const values = formData.getAll('env_value[]');
+        const envVars = keys.map((key, i) => ({ key, value: values[i] }));
+        formData.delete('env_key[]');
+        formData.delete('env_value[]');
+        formData.append('env_vars', JSON.stringify(envVars));
+
+        // Prepare the request
+        try {
+          const response = await fetch('/api/functions/api', {
+            method: 'POST',
+            body: formData
+          });
+          const result = await response.json();
+          if (response.ok) {
+            alert('Function uploaded successfully!');
+          } else {
+            alert('Upload failed: ' + (result.error || response.statusText));
+          }
+        } catch (err) {
+          alert('Upload failed: ' + err.message);
+        }
+      });
+    </script>
+  </body>
+</html>

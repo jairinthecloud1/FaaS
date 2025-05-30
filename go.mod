@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/coreos/go-oidc/v3 v3.14.1
 	github.com/docker/docker v28.0.2+incompatible
+	github.com/gin-contrib/cors v1.7.5
 	github.com/gin-contrib/sessions v1.0.4
 	github.com/gin-gonic/gin v1.10.1
 	github.com/joho/godotenv v1.5.1

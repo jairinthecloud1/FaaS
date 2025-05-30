@@ -10,51 +10,48 @@ import (
 	"io"
 	"log"
 	"mime/multipart"
-	"net/http"
 	"time"
 
-	echo "github.com/labstack/echo/v4"
-
+	"github.com/gin-gonic/gin"
 	"github.com/mholt/archives"
 )
 
-func FormFileToBytes(ctx echo.Context, formFile *multipart.FileHeader) ([]byte, error) {
+func FormFileToBytes(formFile *multipart.FileHeader) ([]byte, error) {
 	src, err := formFile.Open()
 	if err != nil {
-		return nil, ctx.String(http.StatusInternalServerError, "Unable to open the file: "+err.Error())
+		return nil, fmt.Errorf("error opening the file: %w", err)
 	}
 	defer src.Close()
 
 	// Read the entire file into memory (do not save on disk)
 	fileBytes, err := io.ReadAll(src)
 	if err != nil {
-		return nil, ctx.String(http.StatusInternalServerError, "Error reading the file: "+err.Error())
+		return nil, fmt.Errorf("error reading the file: %w", err)
 	}
 
 	return fileBytes, nil
 
 }
 
-func ProcessRequestData(ctx echo.Context) (fileBytes []byte, runtime string, name string, envVars []EnvVar, error error) {
+func ProcessRequestData(ctx *gin.Context) (fileBytes []byte, runtime string, name string, envVars []EnvVar, error error) {
 	// Retrieve the uploaded file from the "file" field.
 	fileHeader, err := ctx.FormFile("file")
 	if err != nil {
-		return nil, "", "", nil, ctx.String(http.StatusBadRequest, "Error retrieving the file: "+err.Error())
+		return nil, "", "", nil, fmt.Errorf("error retrieving file from form: %w", err)
 	}
-
-	fileBytes, err = FormFileToBytes(ctx, fileHeader)
+	fileBytes, err = FormFileToBytes(fileHeader)
 	if err != nil {
 		return nil, "", "", nil, err
 	}
 	// Retrieve other form fields.
-	runtimeField := ctx.FormValue("runtime")
-	nameField := ctx.FormValue("name")
-	envVarsStr := ctx.FormValue("env_vars")
+	runtimeField := ctx.Request.FormValue("runtime")
+	nameField := ctx.Request.FormValue("name")
+	envVarsStr := ctx.Request.FormValue("env_vars")
 
 	// Parse the JSON array of environment variables.
 	if envVarsStr != "" {
 		if err := json.Unmarshal([]byte(envVarsStr), &envVars); err != nil {
-			return nil, "", "", nil, ctx.String(http.StatusBadRequest, "Error parsing env_vars: "+err.Error())
+			return nil, "", "", nil, fmt.Errorf("error parsing env_vars JSON: %w", err)
 		}
 	}
 
@@ -136,7 +133,6 @@ func ZipToTar(stream io.Reader) ([]byte, error) {
 	// Ensure the tar writer is closed (deferred above) so all data is flushed.
 	return buf.Bytes(), nil
 }
-
 
 func InjectDockerfile(tarData []byte) ([]byte, error) {
 	// Create a buffer for the new tar archive.

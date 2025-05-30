@@ -18,13 +18,12 @@ func IsAuthenticated(ctx *gin.Context) {
 		ctx.Redirect(http.StatusSeeOther, "/")
 	}
 	log.Println("user profile:", profile)
-	username := profile.(map[string]interface{})["name"]
-	sub := profile.(map[string]interface{})["sub"]
+	username := profile.(map[string]interface{})["name"].(string)
+	sub := profile.(map[string]interface{})["sub"].(string)
 
-	provider := strings.Split(sub.(string), "|")[0]
+	provider := strings.Split(sub, "|")[0]
 
-	ctx.Set("username", username)
+	ctx.Set("username", strings.ToLower(username))
 	ctx.Set("provider", provider)
 	ctx.Next()
-
 }
