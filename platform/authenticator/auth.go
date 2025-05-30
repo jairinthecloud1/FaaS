@@ -3,7 +3,9 @@ package authenticator
 import (
 	"context"
 	"errors"
+	"log"
 	"os"
+	"strings"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
@@ -15,20 +17,33 @@ type Authenticator struct {
 	oauth2.Config
 }
 
+func envSanitized(envVar string) string {
+	return strings.ReplaceAll(os.Getenv(envVar), "\n", "")
+}
+
 // New instantiates the *Authenticator.
 func New() (*Authenticator, error) {
+
+	log.Printf("Initializing Authenticator with AUTH0_DOMAIN=%s, AUTH0_CLIENT_ID=%s, AUTH0_CLIENT_SECRET=%s, AUTH0_CALLBACK_URL=%s",
+		envSanitized("AUTH0_DOMAIN"),
+		envSanitized("AUTH0_CLIENT_ID"),
+		envSanitized("AUTH0_CLIENT_SECRET"),
+		envSanitized("AUTH0_CALLBACK_URL"),
+	)
+
 	provider, err := oidc.NewProvider(
 		context.Background(),
-		"https://"+os.Getenv("AUTH0_DOMAIN")+"/",
-	)
+
+		"https://"+envSanitized("AUTH0_DOMAIN")+"/")
+
 	if err != nil {
 		return nil, err
 	}
 
 	conf := oauth2.Config{
-		ClientID:     os.Getenv("AUTH0_CLIENT_ID"),
-		ClientSecret: os.Getenv("AUTH0_CLIENT_SECRET"),
-		RedirectURL:  os.Getenv("AUTH0_CALLBACK_URL"),
+		ClientID:     envSanitized("AUTH0_CLIENT_ID"),
+		ClientSecret: envSanitized("AUTH0_CLIENT_SECRET"),
+		RedirectURL:  envSanitized("AUTH0_CALLBACK_URL"),
 		Endpoint:     provider.Endpoint(),
 		Scopes:       []string{oidc.ScopeOpenID, "profile"},
 	}
