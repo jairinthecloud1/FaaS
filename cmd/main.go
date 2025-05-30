@@ -17,8 +17,8 @@ func main() {
 
 	rtr := router.New(auth)
 
-	log.Print("Server listening on http://localhost:9080/")
-	if err := http.ListenAndServe("0.0.0.0:9080", rtr); err != nil {
+	log.Print("Server listening on http://localhost:8090/")
+	if err := http.ListenAndServe("0.0.0.0:8090", rtr); err != nil {
 		log.Fatalf("There was an error with the http server: %v", err)
 	}
 }

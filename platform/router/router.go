@@ -63,25 +63,27 @@ func New(auth *authenticator.Authenticator) *gin.Engine {
 	router.Static("/public", "web/static")
 	router.LoadHTMLGlob("web/template/*")
 
-	router.GET("/", home.Handler)
-	router.GET("/login", login.Handler(auth))
-	router.GET("/callback", callback.Handler(auth))
-	router.GET("/user", middleware.IsAuthenticated, user.Handler)
-	router.GET("/logout", logout.Handler)
+	api := router.Group("/api")
 
-	router.GET("/health", func(c *gin.Context) {
+	api.GET("/", home.Handler)
+	api.GET("/login", login.Handler(auth))
+	api.GET("/callback", callback.Handler(auth))
+	api.GET("/user", middleware.IsAuthenticated, user.Handler)
+	api.GET("/logout", logout.Handler)
+
+	api.GET("/health", func(c *gin.Context) {
 		c.String(200, "OK")
 	})
 
-	router.GET("/app", middleware.IsAuthenticated, app.Handler)
+	protectedAPI := api.Group("", middleware.IsAuthenticated)
 
-	api := router.Group("/api", middleware.IsAuthenticated)
+	protectedAPI.GET("/app", middleware.IsAuthenticated, app.Handler)
 
-	api.POST("/functions", handler.PostFunctionHandler)
+	protectedAPI.POST("/functions", handler.PostFunctionHandler)
 
-	api.GET("/functions/:name", handler.GetFunctionHandler)
+	protectedAPI.GET("/functions/:name", handler.GetFunctionHandler)
 
-	api.GET("/functions", handler.ListFunctionsHandler)
+	protectedAPI.GET("/functions", handler.ListFunctionsHandler)
 
 	return router
 }

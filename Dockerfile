@@ -28,6 +28,10 @@ WORKDIR /root/
 # Copy the compiled binary from the builder stage.
 COPY --from=builder /app/echo-api .
 
+COPY --from=builder /app/web/template ./web/template
+
+COPY --from=builder /app/web/static ./web/static
+
 # Expose the port on which your API listens (adjust if needed).
 EXPOSE 8090
 
