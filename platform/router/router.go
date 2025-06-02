@@ -2,6 +2,7 @@ package router
 
 import (
 	"encoding/gob"
+	"net/http"
 	"os"
 
 	"github.com/gin-contrib/cors"
@@ -10,8 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	handler "faas-api/internal"
-	"faas-api/internal/function"
-	"faas-api/internal/service"
 	"faas-api/platform/authenticator"
 	"faas-api/platform/middleware"
 	"faas-api/web/app/app"
@@ -20,21 +19,19 @@ import (
 	"faas-api/web/app/login"
 	"faas-api/web/app/logout"
 	"faas-api/web/app/user"
-
-	log "github.com/sirupsen/logrus"
 )
 
 // New registers the routes and returns the router.
 func New(auth *authenticator.Authenticator) *gin.Engine {
-	if err := function.ConfigDockerClient(); err != nil {
-		log.WithError(err).Error("failed to create docker client")
-		os.Exit(1)
-	}
+	// if err := function.ConfigDockerClient(); err != nil {
+	// 	log.WithError(err).Error("failed to create docker client")
+	// 	os.Exit(1)
+	// }
 
-	if err := service.ConfigK8Client(); err != nil {
-		log.WithError(err).Error("failed to create k8s client")
-		os.Exit(1)
-	}
+	// if err := service.ConfigK8Client(); err != nil {
+	// 	log.WithError(err).Error("failed to create k8s client")
+	// 	os.Exit(1)
+	// }
 
 	router := gin.Default()
 
@@ -58,6 +55,20 @@ func New(auth *authenticator.Authenticator) *gin.Engine {
 	gob.Register(map[string]interface{}{})
 
 	store := cookie.NewStore([]byte("secret"))
+	cookieDomain := os.Getenv("COOKIE_DOMAIN")
+	secure := os.Getenv("COOKIE_SECURE") == "true"
+	sameSite := http.SameSiteLaxMode
+	if secure {
+		sameSite = http.SameSiteNoneMode
+	}
+	store.Options(sessions.Options{
+		Domain:   cookieDomain,
+		Path:     "/",
+		MaxAge:   86400 * 7, // 7 days
+		Secure:   secure,
+		HttpOnly: true,
+		SameSite: sameSite,
+	})
 	router.Use(sessions.Sessions("auth-session", store))
 
 	router.Static("/public", "web/static")
