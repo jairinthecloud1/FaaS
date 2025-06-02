@@ -172,6 +172,30 @@ spec:
                 secretKeyRef:
                   name: faas-api-secret
                   key: DOCKER_PASSWORD
+            - name: AUTH0_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: faas-api-secret
+                  key: AUTH0_CLIENT_ID
+            - name: AUTH0_DOMAIN
+              valueFrom:
+                secretKeyRef:
+                  name: faas-api-secret
+                  key: AUTH0_DOMAIN
+            - name: AUTH0_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: faas-api-secret
+                  key: AUTH0_CLIENT_SECRET
+            - name: AUTH0_CALLBACK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: faas-api-secret
+                  key: AUTH0_CALLBACK_URL
+            - name: COOKIE_DOMAIN
+              value: ".faas.test"
+            - name: COOKIE_SECURE
+              value: "true"
           resources:
             requests:
               memory: "64Mi"
@@ -232,6 +256,12 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: faas-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://www.faas.test"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "*"
 spec:
   ingressClassName: nginx
   rules:
@@ -252,5 +282,3 @@ spec:
                 name: faas-api
                 port:
                   number: 8090
----
-

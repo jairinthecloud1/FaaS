@@ -74,6 +74,14 @@ Replace `base64==` with the base64 encoded username and password for Docker Hub.
 kubectl patch secret faas-api-secret -p '{"data":{"DOCKER_USERNAME":"base64==","DOCKER_PASSWORD":"base64="}}'
 ```
 
+## Patch Auth0 secrets for the go application
+
+Replace `base64==` with the base64 encoded values for each Auth0 variable from your `.env` file:
+
+```bash
+kubectl patch secret faas-api-secret -p '{"data":{"AUTH0_CLIENT_ID":"base64==","AUTH0_DOMAIN":"base64==","AUTH0_CLIENT_SECRET":"base64==","AUTH0_CALLBACK_URL":"base64=="}}'
+```
+
 ## restart the faas-api deployment
 
 ```bash

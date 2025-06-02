@@ -19,7 +19,7 @@ var Clientset dynamic.Interface
 var knativeServiceGVR = schema.GroupVersionResource{
 	Group:    "serving.knative.dev",
 	Version:  "v1",
-	Resource: "services", // note: the plural form of "Service"
+	Resource: "services",
 }
 
 type ServiceOwner struct {

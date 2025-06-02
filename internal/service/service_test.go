@@ -15,7 +15,7 @@ import (
 
 var clientset dynamic.Interface
 
-func init() {
+func initK8() {
 
 	var kubeconfig *string
 	if home := homedir.HomeDir(); home != "" {
@@ -159,6 +159,7 @@ func TestCreateKnativeService(t *testing.T) {
 
 func TestCreateKnativeServiceWithRealClient(t *testing.T) {
 
+	initK8()
 	fn := Service{
 		Image:        "jairjosafath/hellov4:latest",
 		Namespace:    "default",
@@ -272,6 +273,8 @@ func TestListKnativeServicesFromCluster(t *testing.T) {
 }
 
 func TestGetKnativeServiceFromCluster(t *testing.T) {
+
+	initK8()
 
 	//skip this test if the cluster is not running
 	if clientset == nil {
