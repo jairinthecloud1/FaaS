@@ -11,6 +11,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	handler "faas-api/internal"
+	"faas-api/internal/function"
+	"faas-api/internal/service"
 	"faas-api/platform/authenticator"
 	"faas-api/platform/middleware"
 	"faas-api/web/app/app"
@@ -19,19 +21,21 @@ import (
 	"faas-api/web/app/login"
 	"faas-api/web/app/logout"
 	"faas-api/web/app/user"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // New registers the routes and returns the router.
 func New(auth *authenticator.Authenticator) *gin.Engine {
-	// if err := function.ConfigDockerClient(); err != nil {
-	// 	log.WithError(err).Error("failed to create docker client")
-	// 	os.Exit(1)
-	// }
+	if err := function.ConfigDockerClient(); err != nil {
+		log.WithError(err).Error("failed to create docker client")
+		os.Exit(1)
+	}
 
-	// if err := service.ConfigK8Client(); err != nil {
-	// 	log.WithError(err).Error("failed to create k8s client")
-	// 	os.Exit(1)
-	// }
+	if err := service.ConfigK8Client(); err != nil {
+		log.WithError(err).Error("failed to create k8s client")
+		os.Exit(1)
+	}
 
 	router := gin.Default()
 
