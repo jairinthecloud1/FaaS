@@ -3,6 +3,7 @@ package login
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"log"
 	"net/http"
 
 	"github.com/gin-contrib/sessions"
@@ -17,7 +18,6 @@ func Handler(auth *authenticator.Authenticator) gin.HandlerFunc {
 		state, err := generateRandomState()
 		if err != nil {
 			ctx.String(http.StatusInternalServerError, err.Error())
-			return
 		}
 
 		// Save the state inside the session.
@@ -25,9 +25,11 @@ func Handler(auth *authenticator.Authenticator) gin.HandlerFunc {
 		session.Set("state", state)
 		if err := session.Save(); err != nil {
 			ctx.String(http.StatusInternalServerError, err.Error())
-			return
 		}
 
+		//test saved state value in session
+		stateTest := session.Get("state")
+		log.Println("State previously stored in session:", stateTest)
 		ctx.Redirect(http.StatusTemporaryRedirect, auth.AuthCodeURL(state))
 	}
 }

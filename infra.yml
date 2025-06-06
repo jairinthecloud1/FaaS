@@ -193,9 +193,14 @@ spec:
                   name: faas-api-secret
                   key: AUTH0_CALLBACK_URL
             - name: COOKIE_DOMAIN
-              value: ".faas.test"
+              value: ""
             - name: COOKIE_SECURE
-              value: "true"
+              value: "false"
+            - name: COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: faas-api-secret
+                  key: COOKIE_SECRET
           resources:
             requests:
               memory: "64Mi"
@@ -262,6 +267,7 @@ metadata:
     nginx.ingress.kubernetes.io/cors-allow-origin: "https://www.faas.test"
     nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
     nginx.ingress.kubernetes.io/cors-allow-headers: "*"
+    nginx.ingress.kubernetes.io/affinity: "cookie"
 spec:
   ingressClassName: nginx
   rules:
