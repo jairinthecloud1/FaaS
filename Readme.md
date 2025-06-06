@@ -96,7 +96,6 @@ Port forward the ingress controller to access the services
 
 ```bash
 kubectl port-forward svc/nginx-ingress-ingress-nginx-controller 8888:80
-
 ```
 
 you will have to set the port in your requests during testing
