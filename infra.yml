@@ -44,11 +44,8 @@ rules:
     resources: ["services"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups: [""]
-    resources: ["pods", "namespaces"]
+    resources: ["namespaces"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  - apiGroups: [""]
-    resources: ["pods/log"]
-    verbs: ["get", "list", "watch"]
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -111,6 +108,9 @@ metadata:
   name: faas-api-env
 data:
   DOCKER_REGISTRY: "index.docker.io"
+  DOCKER_HOST: "tcp://localhost:2375"
+  COOKIE_DOMAIN: ""
+  COOKIE_SECURE: "false"
 ---
 apiVersion: v1
 kind: Secret
@@ -160,8 +160,6 @@ spec:
             - configMapRef:
                 name: faas-api-env
           env:
-            - name: DOCKER_HOST
-              value: tcp://localhost:2375
             - name: DOCKER_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -192,10 +190,6 @@ spec:
                 secretKeyRef:
                   name: faas-api-secret
                   key: AUTH0_CALLBACK_URL
-            - name: COOKIE_DOMAIN
-              value: ""
-            - name: COOKIE_SECURE
-              value: "false"
             - name: COOKIE_SECRET
               valueFrom:
                 secretKeyRef:
