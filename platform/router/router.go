@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -39,32 +38,38 @@ func New(auth *authenticator.Authenticator) *gin.Engine {
 
 	router := gin.Default()
 
-	// Add CORS middleware for API routes
-	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"*"} // You can restrict this in production
-	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
-	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization"}
-	config.AllowCredentials = true
-	// Only apply CORS to /api routes
-	router.Use(func(c *gin.Context) {
-		if len(c.Request.URL.Path) >= 4 && c.Request.URL.Path[:4] == "/api" {
-			cors.New(config)(c)
-		} else {
-			c.Next()
-		}
-	})
-
 	// To store custom types in our cookies,
 	// we must first register them using gob.Register
 	gob.Register(map[string]interface{}{})
 
-	store := cookie.NewStore([]byte("secret"))
-	cookieDomain := os.Getenv("COOKIE_DOMAIN")
-	secure := os.Getenv("COOKIE_SECURE") == "true"
-	sameSite := http.SameSiteLaxMode
-	if secure {
-		sameSite = http.SameSiteNoneMode
+	secret := os.Getenv("COOKIE_SECRET")
+	if secret == "" {
+		log.Fatal("COOKIE_SECRET environment variable is not set")
+		os.Exit(1)
 	}
+
+	store := cookie.NewStore([]byte(secret))
+
+	cookieDomain := os.Getenv("COOKIE_DOMAIN")
+	cookieSecure := os.Getenv("COOKIE_SECURE")
+
+	// Default: local development
+	secure := false
+	sameSite := http.SameSiteLaxMode
+	if cookieDomain == "" || cookieDomain == "localhost" {
+		cookieDomain = ""
+		secure = false
+		sameSite = http.SameSiteLaxMode
+	} else {
+		// In cluster/production
+		secure = cookieSecure == "true"
+		if secure {
+			sameSite = http.SameSiteNoneMode
+		} else {
+			sameSite = http.SameSiteLaxMode
+		}
+	}
+
 	store.Options(sessions.Options{
 		Domain:   cookieDomain,
 		Path:     "/",
@@ -92,7 +97,7 @@ func New(auth *authenticator.Authenticator) *gin.Engine {
 
 	protectedAPI := api.Group("", middleware.IsAuthenticated)
 
-	protectedAPI.GET("/app", middleware.IsAuthenticated, app.Handler)
+	protectedAPI.GET("/app", app.Handler)
 
 	protectedAPI.POST("/functions", handler.PostFunctionHandler)
 

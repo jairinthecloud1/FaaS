@@ -6,14 +6,44 @@ FaaS is a serverless framework that allows you to deploy and manage functions as
 
 For the C-4 model of this project please go to [C4 Model](assets/c4.svg)
 
+## Getting Started
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/jairinthecloud1/FaaS.git
+cd FaaS
+```
+
 ## Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/)
-- [Kubernetes](https://kubernetes.io/docs/tasks/tools/)
-- [kubectl](https://kubernetes.io/docs/tasks/tools/)
-- [Helm](https://helm.sh/docs/intro/install/)
-- [Kind](https://kind.sigs.k8s.io/docs/user/quick-start/)
-- [Knative](https://knative.dev/docs/install/)
+The following dependencies are required to run and develop with FaaS:
+
+| Dependency   | Description                                              | Installation Link                                      |
+|-------------|----------------------------------------------------------|--------------------------------------------------------|
+| Docker      | Containerization platform                                | [Get Docker](https://docs.docker.com/get-docker/)      |
+| Kubernetes  | Container orchestration system                           | [Kubernetes Tools](https://kubernetes.io/docs/tasks/tools/) |
+| kubectl     | Kubernetes command-line tool                             | [kubectl](https://kubernetes.io/docs/tasks/tools/)     |
+| Helm        | Kubernetes package manager                               | [Helm Install](https://helm.sh/docs/intro/install/)    |
+| Kind        | Local Kubernetes clusters using Docker containers         | [Kind Quick Start](https://kind.sigs.k8s.io/docs/user/quick-start/) |
+| Knative     | Kubernetes-based platform to deploy and manage serverless workloads | [Knative Install](https://knative.dev/docs/install/)   |
+| Auth0       | Authentication and authorization as a service (with GitHub connection) | [Auth0 Quickstart](https://auth0.com/docs/quickstart) |
+
+## Auth0 Setup
+
+To enable authentication, you need to set up an Auth0 application with a GitHub connection:
+
+1. Go to [Auth0 Dashboard](https://manage.auth0.com/).
+2. Create a new Application (Regular Web Application).
+3. In the application settings, set the callback URLs and allowed logout URLs as needed for your environment.
+4. Go to **Authentication > Social** and enable the **GitHub** connection. Follow the prompts to configure your GitHub OAuth app if you haven't already.
+5. In your Auth0 application, enable the GitHub connection under the Connections tab.
+6. Copy the following values from your Auth0 dashboard:
+   - AUTH0_CLIENT_ID
+   - AUTH0_DOMAIN
+   - AUTH0_CLIENT_SECRET
+   - AUTH0_CALLBACK_URL
+7. Base64 encode each value and use them as described in the Patch Auth0 secrets section below.
 
 ## setup kind for local development
 
@@ -82,6 +112,10 @@ Replace `base64==` with the base64 encoded values for each Auth0 variable from y
 kubectl patch secret faas-api-secret -p '{"data":{"AUTH0_CLIENT_ID":"base64==","AUTH0_DOMAIN":"base64==","AUTH0_CLIENT_SECRET":"base64==","AUTH0_CALLBACK_URL":"base64=="}}'
 ```
 
+```bash
+kubectl patch secret faas-api-secret -p '{"data":{"COOKIE_SECRET":"base64=="}}'
+```
+
 ## restart the faas-api deployment
 
 ```bash
@@ -104,9 +138,4 @@ curl --location 'www.faas.test:8888/api/health'
 
 ```bash
 curl --location 'www.faas.test:8888'
-```
-
-```bash
-curl --location 'www.faas.test:8888/api/functions' \
---header 'Authorization: Bearer valid-token'
 ```
